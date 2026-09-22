@@ -6,12 +6,14 @@ on:
     paths:
       - "GE360.Trading.Core/**"
       - "GE360.Trading.LeanAdapter/**"
+      - "GE360.Trading.LeanAlgorithm/**"
       - "GE360.Trading.Tests/**"
       - ".github/workflows/ge360-ci.yml"
   pull_request:
     paths:
       - "GE360.Trading.Core/**"
       - "GE360.Trading.LeanAdapter/**"
+      - "GE360.Trading.LeanAlgorithm/**"
       - "GE360.Trading.Tests/**"
       - ".github/workflows/ge360-ci.yml"
 
@@ -32,3 +34,5 @@ jobs:
         run: dotnet test GE360.Trading.Tests/GE360.Trading.Tests.csproj --configuration Release
       - name: Build LEAN adapter
         run: dotnet build GE360.Trading.LeanAdapter/GE360.Trading.LeanAdapter.csproj --configuration Release
+      - name: Build GE360 LEAN algorithm
+        run: dotnet build GE360.Trading.LeanAlgorithm/GE360.Trading.LeanAlgorithm.csproj --configuration Release
