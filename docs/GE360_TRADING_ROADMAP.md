@@ -90,6 +90,7 @@ A strategy must never own a brokerage reference or submit an order directly.
    - [x] machine-readable phase-7 progress report that tolerates missing historical data without inventing results.
    - [x] one-command historical download -> quality -> IS/OOS -> walk-forward -> gate pipeline.
    - [x] nightly Debian phase-7 validation service/timer with weekly historical refresh by default.
+   - [x] phase-7 automation CI: missing credentials/data remains explicitly BLOCKED; LEAN smoke and plugin path remain green.
    - [ ] load an adequate continuous minute-history dataset.
    - [ ] run OOS + walk-forward on that adequate dataset.
    - [ ] reach the configurable count gate on an adequate dataset (default: 20 sessions AND 30 closed trades).
