@@ -1,5 +1,6 @@
 using GE360.Trading.Domain;
 using GE360.Trading.Strategies;
+using GE360.Trading.Risk;
 using NUnit.Framework;
 
 namespace GE360.Trading.Tests;
@@ -104,6 +105,37 @@ public sealed class OpeningRangeMomentumStrategyTests
             relativeVolume: 10m)).Single();
 
         Assert.That(signal.Confidence, Is.InRange(0m, 0.95m));
+    }
+
+
+    [Test]
+    public void DoesNotAddRiskWhenPositionAlreadyOpen()
+    {
+        var strategy = new OpeningRangeMomentumStrategy();
+        var context = NewContext(
+            price: 102m,
+            vwap: 100m,
+            openingRangeHigh: 101m,
+            relativeVolume: 2m);
+
+        context = context with
+        {
+            Portfolio = new PortfolioSnapshot(
+                Now,
+                TradingState.PaperOnly,
+                100_000m,
+                100_000m,
+                100_000m,
+                90_000m,
+                new Dictionary<string, PositionSnapshot>
+                {
+                    ["AAPL"] = new("AAPL", 10m, 100m, 102m)
+                })
+        };
+
+        var signals = strategy.Evaluate(context).ToList();
+
+        Assert.That(signals, Is.Empty);
     }
 
     private static StrategyContext NewContext(

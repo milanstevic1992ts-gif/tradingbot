@@ -8,6 +8,7 @@ on:
       - "GE360.Trading.LeanAdapter/**"
       - "GE360.Trading.LeanAlgorithm/**"
       - "GE360.Trading.Tests/**"
+      - "scripts/ge360-smoke-backtest.sh"
       - ".github/workflows/ge360-ci.yml"
   pull_request:
     paths:
@@ -15,6 +16,7 @@ on:
       - "GE360.Trading.LeanAdapter/**"
       - "GE360.Trading.LeanAlgorithm/**"
       - "GE360.Trading.Tests/**"
+      - "scripts/ge360-smoke-backtest.sh"
       - ".github/workflows/ge360-ci.yml"
 
 permissions:
@@ -36,3 +38,5 @@ jobs:
         run: dotnet build GE360.Trading.LeanAdapter/GE360.Trading.LeanAdapter.csproj --configuration Release
       - name: Build GE360 LEAN algorithm
         run: dotnet build GE360.Trading.LeanAlgorithm/GE360.Trading.LeanAlgorithm.csproj --configuration Release
+      - name: Run bundled-data smoke backtest
+        run: bash scripts/ge360-smoke-backtest.sh

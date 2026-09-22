@@ -43,6 +43,13 @@ public sealed class OpeningRangeMomentumStrategy : IGe360Strategy
                 continue;
             }
 
+            if (context.Portfolio is not null &&
+                context.Portfolio.Positions.TryGetValue(feature.Symbol, out var existingPosition) &&
+                existingPosition.Quantity != 0m)
+            {
+                continue;
+            }
+
             if (!feature.OpeningRangeComplete ||
                 market.LastPrice < _config.MinimumPrice ||
                 market.LastPrice > _config.MaximumPrice ||
