@@ -76,7 +76,7 @@ public static class Phase7GateEvaluator
         }
 
         if (research.OutOfSample.BarCount == 0 ||
-            research.OutOfSample.SessionCount == 0)
+            research.OutOfSample.CalendarSessionCount == 0)
         {
             blockers.Add("OUT_OF_SAMPLE_NOT_EXECUTED");
         }
