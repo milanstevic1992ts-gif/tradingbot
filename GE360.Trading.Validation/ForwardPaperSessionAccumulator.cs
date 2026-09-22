@@ -2,7 +2,7 @@ namespace GE360.Trading.Validation;
 
 public sealed class ForwardPaperSessionAccumulator
 {
-    private decimal _netFillQuantity;
+    private readonly Dictionary<string, decimal> _netFillQuantities = new(StringComparer.OrdinalIgnoreCase);
     private int _closedTrades;
     private int _structuralFailures;
 
@@ -35,18 +35,25 @@ public sealed class ForwardPaperSessionAccumulator
     public DateTime SessionDate { get; }
     public DateTime StartedAtUtc { get; }
     public decimal StartingEquity { get; }
-    public decimal NetFillQuantity => _netFillQuantity;
+    // Aggregate quantity is retained for diagnostics only; flat/trade accounting is symbol-aware.
+    public decimal NetFillQuantity => _netFillQuantities.Values.Sum();
+    public int OpenSymbolPositionCount => _netFillQuantities.Count;
     public int ClosedTrades => _closedTrades;
     public int StructuralFailureCount => _structuralFailures;
 
-    public void RecordFill(decimal fillQuantity)
+    public void RecordFill(string symbol, decimal fillQuantity)
     {
+        if (string.IsNullOrWhiteSpace(symbol))
+        {
+            throw new ArgumentException("Fill symbol is required.", nameof(symbol));
+        }
+
         if (fillQuantity == 0m)
         {
             return;
         }
 
-        var previous = _netFillQuantity;
+        _netFillQuantities.TryGetValue(symbol, out var previous);
         var next = previous + fillQuantity;
 
         if (previous != 0m && next == 0m)
@@ -57,13 +64,21 @@ public sealed class ForwardPaperSessionAccumulator
                  next != 0m &&
                  Math.Sign(previous) != Math.Sign(next))
         {
-            // A single fill crossed through flat into the opposite direction.
-            // GE360 strategies should close then reopen through separate approval cycles.
+            // A single fill crossed through flat into the opposite direction
+            // for the same symbol. GE360 strategies should close then reopen
+            // through separate approval cycles.
             _closedTrades++;
             _structuralFailures++;
         }
 
-        _netFillQuantity = next;
+        if (next == 0m)
+        {
+            _netFillQuantities.Remove(symbol);
+        }
+        else
+        {
+            _netFillQuantities[symbol] = next;
+        }
     }
 
     public void RecordStructuralFailure()
@@ -97,7 +112,7 @@ public sealed class ForwardPaperSessionAccumulator
             failures++;
         }
 
-        var fillsFlat = _netFillQuantity == 0m;
+        var fillsFlat = _netFillQuantities.Count == 0;
         if (portfolioFlat != fillsFlat)
         {
             failures++;

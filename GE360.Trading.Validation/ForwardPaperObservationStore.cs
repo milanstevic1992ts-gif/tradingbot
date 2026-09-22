@@ -9,10 +9,19 @@ public sealed class ForwardPaperObservationStore
     public ForwardPaperObservationStore(
         IReadOnlyCollection<ForwardPaperSession>? sessions = null)
     {
-        Sessions = sessions?
-            .OrderBy(x => x.SessionDate.Date)
-            .ToList()
-            ?? new List<ForwardPaperSession>();
+        Sessions = new List<ForwardPaperSession>();
+
+        if (sessions is null)
+        {
+            return;
+        }
+
+        foreach (var session in sessions.OrderBy(x => x.SessionDate.Date))
+        {
+            // Reuse the authoritative validation path so a manually edited or
+            // corrupted store cannot inflate the phase-7 session counter.
+            Add(session);
+        }
     }
 
     public List<ForwardPaperSession> Sessions { get; }

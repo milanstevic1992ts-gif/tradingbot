@@ -11,8 +11,8 @@ public sealed class ForwardPaperSessionAccumulatorTests
     {
         var accumulator = NewAccumulator(startedLate: false);
 
-        accumulator.RecordFill(10m);
-        accumulator.RecordFill(-10m);
+        accumulator.RecordFill("SPY", 10m);
+        accumulator.RecordFill("SPY", -10m);
 
         var session = accumulator.Complete(
             Utc(20, 0),
@@ -22,6 +22,32 @@ public sealed class ForwardPaperSessionAccumulatorTests
 
         Assert.That(session.ClosedTrades, Is.EqualTo(1));
         Assert.That(session.NetPnl, Is.EqualTo(25m));
+        Assert.That(session.StructuralFailureCount, Is.Zero);
+        Assert.That(session.Qualifies, Is.True);
+    }
+
+    [Test]
+    public void DifferentSymbolsCannotCancelEachOther()
+    {
+        var accumulator = NewAccumulator(startedLate: false);
+
+        accumulator.RecordFill("AAPL", 10m);
+        accumulator.RecordFill("MSFT", -10m);
+
+        Assert.That(accumulator.OpenSymbolPositionCount, Is.EqualTo(2));
+
+        accumulator.RecordFill("AAPL", -10m);
+        accumulator.RecordFill("MSFT", 10m);
+
+        Assert.That(accumulator.OpenSymbolPositionCount, Is.Zero);
+
+        var session = accumulator.Complete(
+            Utc(20, 0),
+            endingEquity: 100_025m,
+            portfolioFlat: true,
+            endedTooEarly: false);
+
+        Assert.That(session.ClosedTrades, Is.EqualTo(2));
         Assert.That(session.StructuralFailureCount, Is.Zero);
         Assert.That(session.Qualifies, Is.True);
     }
@@ -46,8 +72,8 @@ public sealed class ForwardPaperSessionAccumulatorTests
     {
         var accumulator = NewAccumulator(startedLate: false);
 
-        accumulator.RecordFill(10m);
-        accumulator.RecordFill(-15m);
+        accumulator.RecordFill("SPY", 10m);
+        accumulator.RecordFill("SPY", -15m);
 
         var session = accumulator.Complete(
             Utc(20, 0),
@@ -65,7 +91,7 @@ public sealed class ForwardPaperSessionAccumulatorTests
     {
         var accumulator = NewAccumulator(startedLate: false);
 
-        accumulator.RecordFill(10m);
+        accumulator.RecordFill("SPY", 10m);
 
         var session = accumulator.Complete(
             Utc(20, 0),

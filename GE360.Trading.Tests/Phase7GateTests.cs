@@ -38,6 +38,15 @@ public sealed class Phase7GateTests
     }
 
     [Test]
+    public void ForwardPaperStoreRejectsDuplicateDatesAtLoadBoundary()
+    {
+        var session = QualifyingSession(new DateTime(2026, 9, 1));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            new ForwardPaperObservationStore(new[] { session, session }));
+    }
+
+    [Test]
     public void Phase7ProgressReportsMissingHistoricalReportWithoutThrowing()
     {
         var paper = ForwardPaperSummary.Assess(

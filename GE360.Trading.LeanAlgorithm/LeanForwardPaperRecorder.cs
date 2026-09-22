@@ -118,7 +118,7 @@ public sealed class LeanForwardPaperRecorder
         if (orderEvent.FillQuantity != 0m &&
             orderEvent.Status is OrderStatus.PartiallyFilled or OrderStatus.Filled)
         {
-            _current.RecordFill(orderEvent.FillQuantity);
+            _current.RecordFill(orderEvent.Symbol.Value, orderEvent.FillQuantity);
         }
     }
 
