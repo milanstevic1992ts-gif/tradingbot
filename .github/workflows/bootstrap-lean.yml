@@ -1,4 +1,4 @@
-name: Bootstrap LEAN into tradingbot
+name: Bootstrap LEAN snapshot into tradingbot
 
 on:
   push:
@@ -14,35 +14,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Mirror QuantConnect LEAN into this repository
+      - name: Import current QuantConnect LEAN source tree
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Cloning QuantConnect/Lean as a full mirror..."
-          git clone --mirror https://github.com/QuantConnect/Lean.git lean.git
-          cd lean.git
+          echo "Cloning current QuantConnect/Lean master..."
+          git clone --depth 1 --branch master https://github.com/QuantConnect/Lean.git source
+          UPSTREAM_SHA="$(git -C source rev-parse HEAD)"
 
-          TARGET="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git remote add target "${TARGET}"
+          echo "Removing only upstream workflow files for the token-restricted push..."
+          rm -rf source/.git
+          rm -rf source/.github/workflows
 
-          echo "Importing LEAN master as tradingbot/main..."
-          git push --force target refs/heads/master:refs/heads/main
+          TARGET_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git clone "${TARGET_URL}" target
+          cd target
 
-          echo "Preserving upstream master as master..."
-          git push --force target refs/heads/master:refs/heads/master
+          echo "Replacing repository contents with LEAN snapshot..."
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a ../source/. .
 
-          echo "Importing all other branches..."
-          while IFS= read -r branch; do
-            case "${branch}" in
-              master|main) continue ;;
-            esac
-            git push --force target "refs/heads/${branch}:refs/heads/${branch}"
-          done < <(git for-each-ref --format='%(refname:strip=2)' refs/heads)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "vendor: import QuantConnect LEAN ${UPSTREAM_SHA} [skip ci]"
+          git push --force origin HEAD:main
 
-          echo "Importing all tags..."
-          git push --force target --tags
-
-          echo "LEAN mirror import completed."
+          echo "LEAN snapshot imported from ${UPSTREAM_SHA}."
