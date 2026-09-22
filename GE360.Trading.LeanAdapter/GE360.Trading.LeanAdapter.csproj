@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>GE360.Trading.LeanAdapter</RootNamespace>
+    <AssemblyName>GE360.Trading.LeanAdapter</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GE360.Trading.Core\GE360.Trading.Core.csproj" />
+    <ProjectReference Include="..\Algorithm\QuantConnect.Algorithm.csproj" />
+    <ProjectReference Include="..\Common\QuantConnect.csproj" />
+  </ItemGroup>
+</Project>
