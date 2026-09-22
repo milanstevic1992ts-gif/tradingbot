@@ -4,7 +4,7 @@ The LEAN upstream core stays authoritative. GE360 features live in separate proj
 
 ## Current engineering phase
 
-**Phase 9 — Observability (IN PROGRESS).**
+**Phase 9 — Observability (COMPLETE).**
 
 Phase 7 validation remains open: adequate continuous history and 20 qualifying forward-paper sessions are still required before any real-broker live activation. Phases 8–9 engineering do not bypass the phase-7 live-activation gate.
 
@@ -151,7 +151,7 @@ See `docs/GE360_RESEARCH_DATA.md` and `docs/GE360_FORWARD_PAPER.md`.
    - [x] recovery checkpoint persistence failure blocks new risk.
    - [x] GE360 CI + LEAN smoke pass with the integrated recovery layer.
 
-9. **Observability — IN PROGRESS**
+9. **Observability — COMPLETE**
    - [x] separate `GE360.Trading.Observability` project; no LEAN-core modifications.
    - [x] daily append-only JSONL event journal.
    - [x] journal every strategy signal before approval.
@@ -165,7 +165,7 @@ See `docs/GE360_RESEARCH_DATA.md` and `docs/GE360_FORWARD_PAPER.md`.
    - [x] terminal observability status command.
    - [x] separate read-only localhost dashboard; no order/control endpoints.
    - [x] Debian dashboard systemd service and idempotent environment migration.
-   - [ ] pass unit tests + dashboard HTTP checks + full LEAN smoke with real journal events.
+   - [x] unit tests + dashboard HTTP checks + full LEAN smoke pass with real journal events.
 
 See `docs/GE360_OBSERVABILITY.md` for the phase-9 telemetry contract and read-only dashboard boundary.
 
