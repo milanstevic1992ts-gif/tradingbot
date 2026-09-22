@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PLUGIN_DIR="${GE360_PLUGIN_DIR:-}"
 
 dotnet build "$ROOT/Launcher/QuantConnect.Lean.Launcher.csproj" --configuration Release
 dotnet build "$ROOT/GE360.Trading.LeanAlgorithm/GE360.Trading.LeanAlgorithm.csproj" --configuration Release
@@ -9,16 +10,24 @@ dotnet build "$ROOT/GE360.Trading.LeanAlgorithm/GE360.Trading.LeanAlgorithm.cspr
 LAUNCH_DIR="$ROOT/Launcher/bin/Release"
 ALGO_DIR="$ROOT/GE360.Trading.LeanAlgorithm/bin/Release/net10.0"
 
-cp "$ALGO_DIR"/GE360.Trading.Core.dll "$LAUNCH_DIR"/
-cp "$ALGO_DIR"/GE360.Trading.LeanAdapter.dll "$LAUNCH_DIR"/
-cp "$ALGO_DIR"/GE360.Trading.LeanAlgorithm.dll "$LAUNCH_DIR"/
+for dll in \
+  GE360.Trading.Core.dll \
+  GE360.Trading.Validation.dll \
+  GE360.Trading.LeanAdapter.dll \
+  GE360.Trading.LeanAlgorithm.dll
+do
+  test -f "$ALGO_DIR/$dll"
+  cp "$ALGO_DIR/$dll" "$LAUNCH_DIR/$dll"
+done
 
-python3 - "$LAUNCH_DIR/config.json" <<'PY'
+python3 - "$LAUNCH_DIR/config.json" "$PLUGIN_DIR" <<'PY'
 from pathlib import Path
+import json
 import re
 import sys
 
 path = Path(sys.argv[1])
+plugin_dir = sys.argv[2].strip()
 text = path.read_text()
 
 text = re.sub(
@@ -39,6 +48,24 @@ text = re.sub(
     text,
     count=1,
 )
+
+if plugin_dir:
+    plugin_dir = str(Path(plugin_dir).resolve())
+    plugin_value = json.dumps(plugin_dir)
+
+    if re.search(r'^\s*"plugin-directory"\s*:', text, flags=re.M):
+        text = re.sub(
+            r'"plugin-directory"\s*:\s*"[^"]*"',
+            '"plugin-directory": ' + plugin_value,
+            text,
+            count=1,
+        )
+    else:
+        text = text.replace(
+            "{\n",
+            "{\n  \"plugin-directory\": " + plugin_value + ",\n",
+            1,
+        )
 
 path.write_text(text)
 PY
@@ -69,4 +96,9 @@ if grep -qi "Runtime Error" "$LOG"; then
   echo "GE360 smoke failed: runtime error detected"
   grep -i "Runtime Error" "$LOG"
   exit 1
+fi
+
+if [ -n "$PLUGIN_DIR" ]; then
+  grep -q "Composer(): Loading Assemblies" "$LOG"
+  echo "GE360 plugin compatibility smoke passed: $PLUGIN_DIR"
 fi

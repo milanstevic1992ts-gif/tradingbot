@@ -78,15 +78,20 @@ A strategy must never own a brokerage reference or submit an order directly.
    - [x] walk-forward windows executed on the bundled engineering dataset.
    - [x] LEAN paper/backtest reality model with explicit deterministic fee/slippage assumptions.
    - [x] mandatory 15:55 New York no-new-risk / protected flatten boundary.
-   - [x] live submission remains disabled by default.
+   - [x] real-broker live submission disabled by default.
    - [x] provider-neutral external minute CSV loader.
    - [x] automatic dataset continuity/depth/duplicate quality assessment.
    - [x] optional authenticated Alpaca historical 1-minute downloader feeding the neutral CSV pipeline.
+   - [x] authoritative forward-paper observation store and phase-7 gate.
+   - [x] automatic forward-paper recorder wired to actual LEAN fills and portfolio state.
+   - [x] runtime policy separates LEAN `PaperBrokerage` from every real brokerage.
+   - [x] official Alpaca plugin prepared as a data-only feed for local LEAN paper observation.
+   - [x] local Debian launcher prepared: Alpaca live data -> GE360 -> LEAN PaperBrokerage.
    - [ ] load an adequate continuous minute-history dataset.
    - [ ] run OOS + walk-forward on that adequate dataset.
    - [ ] reach the configurable count gate on an adequate dataset (default: 20 sessions AND 30 closed trades).
-   - [x] authoritative forward-paper observation store and phase-7 gate implemented.
-   - [ ] complete 20 qualifying forward-paper sessions before any live brokerage mode.
+   - [ ] supply valid data credentials and start the actual forward-paper observation.
+   - [ ] complete 20 qualifying forward-paper sessions.
 
 ### Current bundled-data evidence
 
@@ -115,6 +120,22 @@ External CSV research data is automatically checked independently from strategy 
 
 Optional historical providers must convert into the same neutral data model before research. Provider credentials must never be stored in source control.
 
+### Forward-paper runtime
+
+The supported local paper path is:
+
+```text
+AlpacaBrokerage (market data only)
+        ->
+GE360 Strategy/Risk/ExecutionGuard
+        ->
+LEAN PaperBrokerage (simulated orders/fills)
+```
+
+A separate runtime policy verifies that the effective LEAN brokerage is exactly `PaperBrokerage` before paper submission is allowed. The paper flag cannot authorize a real brokerage.
+
+The forward-paper recorder derives observations from LEAN order-fill events and portfolio state. Late start, early shutdown, non-flat end state, invalid orders and fill/portfolio mismatches disqualify the session.
+
 See `docs/GE360_RESEARCH_DATA.md` and `docs/GE360_FORWARD_PAPER.md`.
 
 8. **Recovery/reconciliation — NOT STARTED**
@@ -134,8 +155,8 @@ Phase 7 is complete only when all of the following are true:
 2. chronological out-of-sample results have been produced with explicit costs;
 3. walk-forward windows have been executed without future leakage;
 4. the count gate is reached on that adequate dataset;
-5. the authoritative forward-paper store contains at least 20 qualifying sessions with zero structural failures and zero live-submission attempts;
-6. no live-broker submission is enabled during validation.
+5. the authoritative forward-paper store contains at least 20 qualifying sessions with zero structural failures and zero real-broker submission attempts;
+6. real-broker live submission remains disabled during validation.
 
 Passing this gate does **not** imply future profitability. It only permits engineering work to proceed to phase 8.
 

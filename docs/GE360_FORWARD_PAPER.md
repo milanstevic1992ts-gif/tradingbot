@@ -4,6 +4,60 @@ Phase 7 is not allowed to complete from historical backtests alone.
 
 GE360 requires a persistent forward-paper observation log before phase 8 can be unlocked.
 
+## Runtime architecture
+
+The supported local forward-paper path is intentionally split:
+
+```text
+Alpaca live market data
+        |
+        v
+AlpacaBrokerage IDataQueueHandler
+        |
+        v
+GE360 Strategy -> Risk -> ExecutionGuard
+        |
+        v
+LEAN PaperBrokerage
+        |
+        v
+simulated fills only
+```
+
+Alpaca is used as a **data provider only** in this profile. Orders are routed to LEAN's native `PaperBrokerage`. GE360 keeps real-broker live submission disabled.
+
+The runtime policy has two independent checks:
+
+1. LEAN must report `live-mode-brokerage = PaperBrokerage`;
+2. GE360 must explicitly enable `AllowPaperBrokerageSubmission`.
+
+The paper flag alone cannot authorize Interactive Brokers, Alpaca brokerage execution, or any other real brokerage.
+
+## Automatic recorder
+
+When the algorithm is running under LEAN `live-paper`, `Ge360OpeningRangePaperAlgorithm` enables `LeanForwardPaperRecorder`.
+
+The recorder uses actual LEAN order events and portfolio state. It records:
+
+- session date and UTC start/end;
+- closed round-trip trades inferred from fills;
+- session P&L from portfolio equity;
+- whether the session ended flat;
+- structural failures;
+- real-live submission attempts if ever detected.
+
+A session is automatically non-qualifying if, among other conditions:
+
+- the process starts after 09:35 New York time;
+- the process ends before 15:59 New York time;
+- it ends with a position open;
+- the order-fill ledger disagrees with portfolio flat state;
+- an order becomes invalid;
+- a fill crosses directly through flat into the opposite position;
+- a structural execution failure occurs.
+
+A restart during the session therefore cannot silently turn a partial observation into a qualifying full session.
+
 ## Default engineering requirement
 
 The current default is:
@@ -11,14 +65,51 @@ The current default is:
 - 20 qualifying forward-paper sessions;
 - every qualifying session must end flat;
 - zero structural failures;
-- zero live-submission attempts;
-- live submission must remain disabled when the final phase-7 gate is evaluated.
+- zero real-broker submission attempts;
+- real-broker live submission must remain disabled when the final phase-7 gate is evaluated.
 
 A qualifying session does not need to be profitable. This is an engineering observation requirement, not a profitability claim.
 
-## Record a completed paper session
+## Start automatic live-paper on Debian
 
-Example:
+The launcher uses the official QuantConnect Alpaca brokerage plugin as the live-data handler and LEAN's native `PaperBrokerage` for simulated orders.
+
+Set Alpaca credentials only in the environment:
+
+```bash
+export APCA_API_KEY_ID="..."
+export APCA_API_SECRET_KEY="..."
+```
+
+Optionally choose another persistent observation-store path:
+
+```bash
+export GE360_FORWARD_PAPER_STORE="$PWD/ge360-state/forward-paper.json"
+```
+
+Then run:
+
+```bash
+bash scripts/ge360-live-paper-alpaca.sh
+```
+
+The script:
+
+- builds the local LEAN Launcher;
+- builds the GE360 algorithm;
+- stages the pinned official `QuantConnect.Brokerages.Alpaca` plugin in `ge360-plugins/alpaca`;
+- configures LEAN `live-paper`;
+- sets `live-mode-brokerage` to the existing LEAN `PaperBrokerage`;
+- uses `AlpacaBrokerage` only as `data-queue-handler`;
+- copies GE360 Core/Validation/Adapter/Algorithm assemblies;
+- starts LEAN;
+- never writes Alpaca credentials to Git.
+
+Runtime-generated `ge360-state/` and `ge360-plugins/` are ignored by Git.
+
+## Manual session import / recovery
+
+Automatic recording is the normal path. The manual command exists for controlled recovery or importing a verified observation:
 
 ```bash
 dotnet run \
@@ -35,7 +126,7 @@ dotnet run \
   --ended-flat true \
   --structural-failures 0 \
   --live-attempts 0 \
-  --note "paper observation"
+  --note "verified recovery import"
 ```
 
 The store is written atomically. A second record for the same session date is rejected instead of silently overwriting history.
@@ -76,10 +167,10 @@ The result contains explicit blockers such as:
 
 Forward-paper state is runtime state, not source code.
 
-The recommended local repository-relative path is:
+The default local path is:
 
 ```text
 ge360-state/forward-paper.json
 ```
 
-The `ge360-state/` directory is ignored by Git and should be backed up separately on the Debian host.
+The directory is ignored by Git and should be included in the Debian backup policy.

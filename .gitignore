@@ -284,3 +284,6 @@ QuantConnect.Lean.sln.DotSettings
 
 # GE360 runtime research/paper state
 ge360-state/
+
+# GE360 staged runtime plugins
+ge360-plugins/
