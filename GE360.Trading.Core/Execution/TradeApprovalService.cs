@@ -57,7 +57,8 @@ public sealed class TradeApprovalService
             market.LastPrice,
             signal.SuggestedStopPrice,
             signal.SuggestedTakeProfitPrice,
-            signal.Reason);
+            signal.Reason,
+            signal.Direction == SignalDirection.Flat);
 
         return TradeApprovalResult.Approve(order);
     }

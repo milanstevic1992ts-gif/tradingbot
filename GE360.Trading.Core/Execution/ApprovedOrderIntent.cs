@@ -15,7 +15,8 @@ public sealed class ApprovedOrderIntent
         decimal referencePrice,
         decimal? stopPrice,
         decimal? takeProfitPrice,
-        string reason)
+        string reason,
+        bool isRiskReducing)
     {
         SignalId = signalId;
         StrategyId = strategyId;
@@ -26,6 +27,7 @@ public sealed class ApprovedOrderIntent
         StopPrice = stopPrice;
         TakeProfitPrice = takeProfitPrice;
         Reason = reason;
+        IsRiskReducing = isRiskReducing;
     }
 
     public Guid SignalId { get; }
@@ -37,4 +39,5 @@ public sealed class ApprovedOrderIntent
     public decimal? StopPrice { get; }
     public decimal? TakeProfitPrice { get; }
     public string Reason { get; }
+    public bool IsRiskReducing { get; }
 }

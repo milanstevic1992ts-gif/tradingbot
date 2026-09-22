@@ -1,3 +1,4 @@
+using GE360.Trading.Domain;
 using GE360.Trading.Execution;
 using QuantConnect;
 using QuantConnect.Algorithm;
@@ -6,19 +7,23 @@ namespace GE360.Trading.LeanAdapter;
 
 /// <summary>
 /// Thin boundary into LEAN. It accepts only ApprovedOrderIntent.
-/// Live submission is disabled by default until the protective-order layer is implemented.
+/// Live submission is disabled by default until protective execution safeguards are enabled.
 /// </summary>
 public sealed class LeanExecutionAdapter
 {
     private readonly QCAlgorithm _algorithm;
     private readonly LeanExecutionOptions _options;
+    private readonly ExecutionGuard _executionGuard;
 
     public LeanExecutionAdapter(
         QCAlgorithm algorithm,
-        LeanExecutionOptions? options = null)
+        LeanExecutionOptions? options = null,
+        ExecutionGuard? executionGuard = null)
     {
         _algorithm = algorithm ?? throw new ArgumentNullException(nameof(algorithm));
         _options = options ?? new LeanExecutionOptions();
+        _executionGuard = executionGuard ??
+            new ExecutionGuard(ExecutionGuardConfig.ConservativePaperDefaults);
     }
 
     public LeanExecutionResult Submit(ApprovedOrderIntent intent)
@@ -55,12 +60,37 @@ public sealed class LeanExecutionAdapter
                 "GE360 blocks market orders while the exchange is closed.");
         }
 
-        var quantity = NormalizeQuantity(intent.Quantity, security.SymbolProperties.LotSize);
+        var market = new MarketSnapshot(
+            intent.Symbol,
+            _algorithm.UtcTime,
+            security.Price,
+            security.BidPrice,
+            security.AskPrice,
+            security.Volume);
+
+        var executionDecision = _executionGuard.Evaluate(
+            intent,
+            market,
+            _algorithm.UtcTime);
+
+        if (!executionDecision.Allowed)
+        {
+            return LeanExecutionResult.Reject(
+                executionDecision.Code,
+                executionDecision.Reason);
+        }
+
+        var quantity = intent.IsRiskReducing
+            ? GetRiskReducingQuantity(security.Holdings.Quantity)
+            : NormalizeQuantity(intent.Quantity, security.SymbolProperties.LotSize);
+
         if (quantity == 0m)
         {
             return LeanExecutionResult.Reject(
-                "QUANTITY_BELOW_LOT_SIZE",
-                "Approved quantity is below the instrument lot size.");
+                intent.IsRiskReducing ? "NO_POSITION_TO_REDUCE" : "QUANTITY_BELOW_LOT_SIZE",
+                intent.IsRiskReducing
+                    ? "LEAN reports no current position to reduce."
+                    : "Approved quantity is below the instrument lot size.");
         }
 
         try
@@ -79,6 +109,7 @@ public sealed class LeanExecutionAdapter
                     "LEAN rejected the submitted order request.");
             }
 
+            _executionGuard.RecordSubmission(intent, _algorithm.UtcTime);
             return LeanExecutionResult.Success(ticket.OrderId);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException and not StackOverflowException)
@@ -99,4 +130,9 @@ public sealed class LeanExecutionAdapter
         var absoluteLots = Math.Truncate(Math.Abs(quantity) / lotSize);
         return Math.Sign(quantity) * absoluteLots * lotSize;
     }
+
+    private static decimal GetRiskReducingQuantity(decimal currentHoldingsQuantity)
+        => currentHoldingsQuantity == 0m
+            ? 0m
+            : -currentHoldingsQuantity;
 }
