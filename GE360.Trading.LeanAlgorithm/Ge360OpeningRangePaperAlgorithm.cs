@@ -18,7 +18,7 @@ namespace GE360.Trading.LeanAlgorithm;
 /// </summary>
 public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
 {
-    private const string Ticker = "SPY";
+    private const string AssetTicker = "SPY";
 
     private Symbol _symbol = null!;
     private IntradayFeatureEngine _features = null!;
@@ -34,16 +34,16 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
 
     public override void Initialize()
     {
-        SetStartDate(2025, 1, 1);
-        SetEndDate(2025, 12, 31);
+        SetStartDate(2013, 10, 7);
+        SetEndDate(2013, 10, 11);
         SetCash(100_000);
         SetTimeZone(TimeZones.NewYork);
 
-        var equity = AddEquity(Ticker, Resolution.Minute);
+        var equity = AddEquity(AssetTicker, Resolution.Minute);
         _symbol = equity.Symbol;
         SetBenchmark(_symbol);
 
-        _features = new IntradayFeatureEngine(Ticker);
+        _features = new IntradayFeatureEngine(AssetTicker);
         _strategy = new OpeningRangeMomentumStrategy();
         _protection = new ProtectionEngine(ProtectionConfig.ConservativePaperDefaults);
         _approval = new TradeApprovalService(
@@ -72,7 +72,7 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
         }
 
         var featureOutput = _features.Update(new IntradayBar(
-            Ticker,
+            AssetTicker,
             UtcTime,
             bar.EndTime,
             bar.Open,
@@ -115,11 +115,11 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
             UtcTime,
             new Dictionary<string, MarketSnapshot>
             {
-                [Ticker] = market
+                [AssetTicker] = market
             },
             new Dictionary<string, StrategyFeatures>
             {
-                [Ticker] = featureOutput.Features
+                [AssetTicker] = featureOutput.Features
             },
             portfolio);
 
@@ -182,8 +182,8 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
 
         if (holdings.Quantity != 0m)
         {
-            positions[Ticker] = new PositionSnapshot(
-                Ticker,
+            positions[AssetTicker] = new PositionSnapshot(
+                AssetTicker,
                 holdings.Quantity,
                 holdings.AveragePrice,
                 market.LastPrice);
