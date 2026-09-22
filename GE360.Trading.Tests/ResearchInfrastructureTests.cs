@@ -88,6 +88,23 @@ public sealed class ResearchInfrastructureTests
     }
 
     [Test]
+    public void ResearchRunnerForcesIntradayFlatten()
+    {
+        var bars = BuildFlattenSyntheticSession();
+        var runner = new OpeningRangeResearchRunner();
+
+        var result = runner.Run(
+            bars,
+            costs: new ResearchCostModel(0m, 0m));
+
+        Assert.That(result.Trades.Count, Is.EqualTo(1));
+        Assert.That(result.Trades[0].ExitReason, Is.EqualTo("intraday-flatten"));
+        Assert.That(
+            result.Trades[0].ExitTimeUtc,
+            Is.GreaterThan(result.Trades[0].EntryTimeUtc));
+    }
+
+    [Test]
     public void SmallBundledDatasetIsClassifiedAsSmokeOnly()
     {
         var validation = ResearchValidation.Assess(
@@ -134,6 +151,47 @@ public sealed class ResearchInfrastructureTests
             106m,
             101.8m,
             105m,
+            1_500m));
+
+        return bars;
+    }
+
+    private static IReadOnlyList<IntradayBar> BuildFlattenSyntheticSession()
+    {
+        var session = new DateTime(2026, 3, 3);
+        var bars = new List<IntradayBar>();
+
+        for (var minute = 0; minute < 15; minute++)
+        {
+            bars.Add(Bar(
+                session,
+                9,
+                30 + minute,
+                100m,
+                101m,
+                99.5m,
+                100m,
+                1_000m));
+        }
+
+        bars.Add(Bar(
+            session,
+            9,
+            45,
+            101.5m,
+            102.2m,
+            101.4m,
+            102m,
+            3_000m));
+
+        bars.Add(Bar(
+            session,
+            15,
+            55,
+            102m,
+            102.4m,
+            101.6m,
+            102.2m,
             1_500m));
 
         return bars;

@@ -7,6 +7,7 @@ on:
       - "GE360.Trading.Core/**"
       - "GE360.Trading.LeanAdapter/**"
       - "GE360.Trading.LeanAlgorithm/**"
+      - "GE360.Trading.Research/**"
       - "GE360.Trading.Tests/**"
       - "scripts/ge360-smoke-backtest.sh"
       - ".github/workflows/ge360-ci.yml"
@@ -15,6 +16,7 @@ on:
       - "GE360.Trading.Core/**"
       - "GE360.Trading.LeanAdapter/**"
       - "GE360.Trading.LeanAlgorithm/**"
+      - "GE360.Trading.Research/**"
       - "GE360.Trading.Tests/**"
       - "scripts/ge360-smoke-backtest.sh"
       - ".github/workflows/ge360-ci.yml"
@@ -32,11 +34,28 @@ jobs:
           dotnet-version: "10.0.x"
       - name: Build GE360 core
         run: dotnet build GE360.Trading.Core/GE360.Trading.Core.csproj --configuration Release
+      - name: Build GE360 research harness
+        run: dotnet build GE360.Trading.Research/GE360.Trading.Research.csproj --configuration Release
       - name: Run GE360 tests
         run: dotnet test GE360.Trading.Tests/GE360.Trading.Tests.csproj --configuration Release
+      - name: Run bundled historical research smoke
+        run: >
+          dotnet run
+          --project GE360.Trading.Research/GE360.Trading.Research.csproj
+          --configuration Release
+          --no-build
+          --
+          --bundled-spy-smoke
+          --output artifacts/ge360-research-smoke.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ge360-research-smoke
+          path: artifacts/ge360-research-smoke.json
+          if-no-files-found: warn
       - name: Build LEAN adapter
         run: dotnet build GE360.Trading.LeanAdapter/GE360.Trading.LeanAdapter.csproj --configuration Release
       - name: Build GE360 LEAN algorithm
         run: dotnet build GE360.Trading.LeanAlgorithm/GE360.Trading.LeanAlgorithm.csproj --configuration Release
-      - name: Run bundled-data smoke backtest
+      - name: Run bundled-data LEAN smoke backtest
         run: bash scripts/ge360-smoke-backtest.sh

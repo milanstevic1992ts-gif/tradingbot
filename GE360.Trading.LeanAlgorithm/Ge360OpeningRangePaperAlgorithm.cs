@@ -9,6 +9,8 @@ using QuantConnect;
 using QuantConnect.Algorithm;
 using QuantConnect.Data;
 using QuantConnect.Data.Market;
+using QuantConnect.Orders.Fees;
+using QuantConnect.Orders.Slippage;
 
 namespace GE360.Trading.LeanAlgorithm;
 
@@ -19,6 +21,9 @@ namespace GE360.Trading.LeanAlgorithm;
 public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
 {
     private const string AssetTicker = "SPY";
+    private const decimal ResearchFeePerOrderUsd = 0.50m;
+    private const decimal ResearchSlippagePercent = 0.0005m;
+    private static readonly TimeSpan IntradayFlattenTime = new(15, 55, 0);
 
     private Symbol _symbol = null!;
     private IntradayFeatureEngine _features = null!;
@@ -40,6 +45,9 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
         SetTimeZone(TimeZones.NewYork);
 
         var equity = AddEquity(AssetTicker, Resolution.Minute);
+        equity.SetFeeModel(new ConstantFeeModel(ResearchFeePerOrderUsd));
+        equity.SetSlippageModel(new ConstantSlippageModel(ResearchSlippagePercent));
+
         _symbol = equity.Symbol;
         SetBenchmark(_symbol);
 
@@ -99,6 +107,29 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
         };
 
         var portfolio = BuildPortfolioSnapshot(market);
+
+        // Intraday invariant: no new risk after 15:55 New York time.
+        // Any open position is flattened through the same GE360 approval/execution path.
+        if (Time.TimeOfDay >= IntradayFlattenTime)
+        {
+            if (portfolio.Positions.ContainsKey(AssetTicker))
+            {
+                var flattenSignal = SignalIntent.Create(
+                    "intraday-session-control",
+                    AssetTicker,
+                    SignalDirection.Flat,
+                    UtcTime,
+                    1m,
+                    market.LastPrice,
+                    null,
+                    null,
+                    "intraday-flatten");
+
+                ProcessSignal(flattenSignal, market, portfolio);
+            }
+
+            return;
+        }
 
         var protectiveExit = _positionProtection.Evaluate(
             market,
