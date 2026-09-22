@@ -4,6 +4,7 @@
     <OutputType>Library</OutputType>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <RootNamespace>GE360.Trading.AlpacaPluginHost</RootNamespace>
     <AssemblyName>GE360.Trading.AlpacaPluginHost</AssemblyName>
   </PropertyGroup>
