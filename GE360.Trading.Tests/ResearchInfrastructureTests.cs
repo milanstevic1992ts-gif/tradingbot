@@ -149,7 +149,7 @@ public sealed class ResearchInfrastructureTests
         Assert.That(result.SymbolCount, Is.EqualTo(2));
         Assert.That(result.SymbolSessionCount, Is.EqualTo(2));
         Assert.That(result.Trades.Count, Is.EqualTo(2));
-        Assert.That(result.Trades.Select(x => x.Symbol).Distinct(), Has.Count.EqualTo(2));
+        Assert.That(result.Trades.Select(x => x.Symbol).Distinct().Count(), Is.EqualTo(2));
     }
 
     [Test]
