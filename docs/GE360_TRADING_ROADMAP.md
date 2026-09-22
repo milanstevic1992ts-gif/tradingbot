@@ -4,7 +4,7 @@ The LEAN upstream core stays authoritative. GE360 features live in separate proj
 
 ## Current engineering phase
 
-**Phase 8 — Recovery/reconciliation (IN PROGRESS).**
+**Phase 8 — Recovery/reconciliation (COMPLETE).**
 
 Phase 7 validation remains open: adequate continuous history and 20 qualifying forward-paper sessions are still required before any real-broker live activation. Phase-8 engineering was started by explicit operator instruction; this does not bypass the phase-7 live-activation gate.
 
@@ -138,7 +138,7 @@ The forward-paper recorder derives observations from LEAN order-fill events and 
 
 See `docs/GE360_RESEARCH_DATA.md` and `docs/GE360_FORWARD_PAPER.md`.
 
-8. **Recovery/reconciliation — IN PROGRESS**
+8. **Recovery/reconciliation — COMPLETE**
    - [x] persistent atomic recovery checkpoint.
    - [x] persist expected positions, open orders and stop/target metadata.
    - [x] compare checkpoint against LEAN broker-synchronized holdings/orders at startup.
@@ -149,7 +149,7 @@ See `docs/GE360_RESEARCH_DATA.md` and `docs/GE360_FORWARD_PAPER.md`.
    - [x] new-risk signals are blocked through existing `TradingState.Reducing` risk logic.
    - [x] reconciliation exits use the normal `SignalIntent Flat -> Protection -> Risk -> ExecutionGuard -> LEAN` path.
    - [x] recovery checkpoint persistence failure blocks new risk.
-   - [ ] pass GE360 CI + LEAN smoke with the integrated recovery layer.
+   - [x] GE360 CI + LEAN smoke pass with the integrated recovery layer.
 
 9. **Observability — NOT STARTED**
    - journal every signal, rejection, sizing decision and order.
