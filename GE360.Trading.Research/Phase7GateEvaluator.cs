@@ -1,3 +1,5 @@
+using GE360.Trading.Validation;
+
 namespace GE360.Trading.Research;
 
 public sealed record Phase7GateRequirements(

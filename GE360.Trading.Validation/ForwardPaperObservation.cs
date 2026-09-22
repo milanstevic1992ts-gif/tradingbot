@@ -1,4 +1,4 @@
-namespace GE360.Trading.Research;
+namespace GE360.Trading.Validation;
 
 public sealed record ForwardPaperSession(
     DateTime SessionDate,

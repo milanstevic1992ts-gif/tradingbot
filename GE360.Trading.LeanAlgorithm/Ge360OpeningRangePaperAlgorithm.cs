@@ -7,8 +7,10 @@ using GE360.Trading.Risk;
 using GE360.Trading.Strategies;
 using QuantConnect;
 using QuantConnect.Algorithm;
+using QuantConnect.Configuration;
 using QuantConnect.Data;
 using QuantConnect.Data.Market;
+using QuantConnect.Orders;
 using QuantConnect.Orders.Fees;
 using QuantConnect.Orders.Slippage;
 
@@ -32,6 +34,7 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
     private TradeApprovalService _approval = null!;
     private LeanExecutionAdapter _execution = null!;
     private PositionProtectionMonitor _positionProtection = null!;
+    private LeanForwardPaperRecorder? _forwardPaperRecorder;
 
     private decimal _peakEquity;
     private decimal _dayStartEquity;
@@ -58,14 +61,36 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
             _protection,
             new DefaultPreTradeRiskGate(RiskLimits.ConservativePaperDefaults));
 
+        var configuredBrokerage = Config.Get("live-mode-brokerage");
+        var isLeanPaperRuntime =
+            LiveMode &&
+            string.Equals(
+                configuredBrokerage,
+                "PaperBrokerage",
+                StringComparison.OrdinalIgnoreCase);
+
         _execution = new LeanExecutionAdapter(
             this,
             new LeanExecutionOptions(
                 EnableLiveSubmission: false,
+                AllowPaperBrokerageSubmission: isLeanPaperRuntime,
                 Asynchronous: false,
                 BlockWhenMarketClosed: true));
 
         _positionProtection = new PositionProtectionMonitor();
+
+        if (isLeanPaperRuntime)
+        {
+            var storePath = Environment.GetEnvironmentVariable(
+                LeanForwardPaperRecorder.StorePathEnvironmentVariable);
+
+            _forwardPaperRecorder = new LeanForwardPaperRecorder(
+                storePath,
+                message => Debug(message));
+
+            Debug(
+                $"GE360 forward-paper recorder enabled: {_forwardPaperRecorder.StorePath}");
+        }
 
         _peakEquity = Portfolio.TotalPortfolioValue;
         _dayStartEquity = Portfolio.TotalPortfolioValue;
@@ -79,89 +104,111 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
             return;
         }
 
-        var featureOutput = _features.Update(new IntradayBar(
-            AssetTicker,
-            UtcTime,
-            bar.EndTime,
-            bar.Open,
-            bar.High,
-            bar.Low,
-            bar.Close,
-            bar.Volume));
-
-        if (featureOutput is null)
+        try
         {
-            return;
-        }
+            var featureOutput = _features.Update(new IntradayBar(
+                AssetTicker,
+                UtcTime,
+                bar.EndTime,
+                bar.Open,
+                bar.High,
+                bar.Low,
+                bar.Close,
+                bar.Volume));
 
-        var security = Securities[_symbol];
-        var lastPrice = security.Price > 0m ? security.Price : bar.Close;
-        var bidPrice = security.BidPrice > 0m ? security.BidPrice : lastPrice;
-        var askPrice = security.AskPrice > 0m ? security.AskPrice : lastPrice;
-
-        var market = featureOutput.Market with
-        {
-            LastPrice = lastPrice,
-            BidPrice = bidPrice,
-            AskPrice = askPrice
-        };
-
-        var portfolio = BuildPortfolioSnapshot(market);
-
-        // Intraday invariant: no new risk after 15:55 New York time.
-        // Any open position is flattened through the same GE360 approval/execution path.
-        if (Time.TimeOfDay >= IntradayFlattenTime)
-        {
-            if (portfolio.Positions.ContainsKey(AssetTicker))
+            if (featureOutput is null)
             {
-                var flattenSignal = SignalIntent.Create(
-                    "intraday-session-control",
-                    AssetTicker,
-                    SignalDirection.Flat,
-                    UtcTime,
-                    1m,
-                    market.LastPrice,
-                    null,
-                    null,
-                    "intraday-flatten");
-
-                ProcessSignal(flattenSignal, market, portfolio);
+                return;
             }
 
-            return;
-        }
+            var security = Securities[_symbol];
+            var lastPrice = security.Price > 0m ? security.Price : bar.Close;
+            var bidPrice = security.BidPrice > 0m ? security.BidPrice : lastPrice;
+            var askPrice = security.AskPrice > 0m ? security.AskPrice : lastPrice;
 
-        var protectiveExit = _positionProtection.Evaluate(
-            market,
-            portfolio,
-            UtcTime);
-
-        if (protectiveExit is not null)
-        {
-            ProcessSignal(protectiveExit, market, portfolio);
-            return;
-        }
-
-        var context = new StrategyContext(
-            UtcTime,
-            new Dictionary<string, MarketSnapshot>
+            var market = featureOutput.Market with
             {
-                [AssetTicker] = market
-            },
-            new Dictionary<string, StrategyFeatures>
-            {
-                [AssetTicker] = featureOutput.Features
-            },
-            portfolio);
+                LastPrice = lastPrice,
+                BidPrice = bidPrice,
+                AskPrice = askPrice
+            };
 
-        foreach (var signal in _strategy.Evaluate(context))
-        {
-            ProcessSignal(signal, market, portfolio);
+            var portfolio = BuildPortfolioSnapshot(market);
+
+            // Intraday invariant: no new risk after 15:55 New York time.
+            // Any open position is flattened through the same GE360 approval/execution path.
+            if (Time.TimeOfDay >= IntradayFlattenTime)
+            {
+                if (portfolio.Positions.ContainsKey(AssetTicker))
+                {
+                    var flattenSignal = SignalIntent.Create(
+                        "intraday-session-control",
+                        AssetTicker,
+                        SignalDirection.Flat,
+                        UtcTime,
+                        1m,
+                        market.LastPrice,
+                        null,
+                        null,
+                        "intraday-flatten");
+
+                    ProcessSignal(flattenSignal, market, portfolio);
+                }
+
+                return;
+            }
+
+            var protectiveExit = _positionProtection.Evaluate(
+                market,
+                portfolio,
+                UtcTime);
+
+            if (protectiveExit is not null)
+            {
+                ProcessSignal(protectiveExit, market, portfolio);
+                return;
+            }
+
+            var context = new StrategyContext(
+                UtcTime,
+                new Dictionary<string, MarketSnapshot>
+                {
+                    [AssetTicker] = market
+                },
+                new Dictionary<string, StrategyFeatures>
+                {
+                    [AssetTicker] = featureOutput.Features
+                },
+                portfolio);
+
+            foreach (var signal in _strategy.Evaluate(context))
+            {
+                ProcessSignal(signal, market, portfolio);
+            }
         }
+        finally
+        {
+            _forwardPaperRecorder?.ObserveBar(
+                UtcTime,
+                bar.EndTime,
+                Portfolio.TotalPortfolioValue,
+                Portfolio.Invested);
+        }
+    }
+
+    public override void OnOrderEvent(OrderEvent orderEvent)
+    {
+        _forwardPaperRecorder?.ObserveOrderEvent(orderEvent);
     }
 
     public override void OnEndOfAlgorithm()
     {
+        _forwardPaperRecorder?.FinalizeAtShutdown(
+            UtcTime,
+            Time,
+            Portfolio.TotalPortfolioValue,
+            Portfolio.Invested);
+
         if (Portfolio.Invested)
         {
             throw new InvalidOperationException(
@@ -186,6 +233,12 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
         {
             Debug($"GE360 EXEC REJECT {signal.Symbol}: {execution.Code} - {execution.Reason}");
 
+            if (IsStructuralExecutionFailure(execution.Code))
+            {
+                _forwardPaperRecorder?.RecordStructuralFailure(
+                    $"{execution.Code}: {execution.Reason}");
+            }
+
             if (approval.Order.IsRiskReducing)
             {
                 _positionProtection.MarkExitSubmissionFailed(signal.Symbol);
@@ -204,6 +257,17 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
             Debug($"GE360 ENTRY submitted {signal.Symbol} qty={approval.Order.Quantity:F4} order={execution.LeanOrderId}");
         }
     }
+
+    private static bool IsStructuralExecutionFailure(string code)
+        => code is
+            "LEAN_ORDER_REJECTED" or
+            "LEAN_EXECUTION_ERROR" or
+            "PAPER_SUBMISSION_DISABLED" or
+            "LIVE_SUBMISSION_DISABLED" or
+            "UNKNOWN_SYMBOL" or
+            "SECURITY_NOT_SUBSCRIBED" or
+            "MARKET_CLOSED" or
+            "NO_POSITION_TO_REDUCE";
 
     private PortfolioSnapshot BuildPortfolioSnapshot(MarketSnapshot market)
     {

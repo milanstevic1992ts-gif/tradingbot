@@ -1,4 +1,5 @@
 using GE360.Trading.Research;
+using GE360.Trading.Validation;
 using NUnit.Framework;
 
 namespace GE360.Trading.Tests;

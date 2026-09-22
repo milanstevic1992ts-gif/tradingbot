@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\GE360.Trading.Core\GE360.Trading.Core.csproj" />
+    <ProjectReference Include="..\GE360.Trading.Validation\GE360.Trading.Validation.csproj" />
     <ProjectReference Include="..\GE360.Trading.LeanAdapter\GE360.Trading.LeanAdapter.csproj" />
     <ProjectReference Include="..\Algorithm\QuantConnect.Algorithm.csproj" />
     <ProjectReference Include="..\Common\QuantConnect.csproj" />

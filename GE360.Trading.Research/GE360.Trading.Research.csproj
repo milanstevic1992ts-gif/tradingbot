@@ -10,5 +10,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\GE360.Trading.Core\GE360.Trading.Core.csproj" />
+    <ProjectReference Include="..\GE360.Trading.Validation\GE360.Trading.Validation.csproj" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using GE360.Trading.Validation;
 
 namespace GE360.Trading.Research;
 

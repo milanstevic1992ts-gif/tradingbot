@@ -2,6 +2,7 @@ using GE360.Trading.Domain;
 using GE360.Trading.Execution;
 using QuantConnect;
 using QuantConnect.Algorithm;
+using QuantConnect.Configuration;
 
 namespace GE360.Trading.LeanAdapter;
 
@@ -30,11 +31,16 @@ public sealed class LeanExecutionAdapter
     {
         ArgumentNullException.ThrowIfNull(intent);
 
-        if (_algorithm.LiveMode && !_options.EnableLiveSubmission)
+        var runtimePolicy = LeanRuntimeSubmissionPolicy.Evaluate(
+            _algorithm.LiveMode,
+            Config.Get("live-mode-brokerage"),
+            _options);
+
+        if (!runtimePolicy.Allowed)
         {
             return LeanExecutionResult.Reject(
-                "LIVE_SUBMISSION_DISABLED",
-                "GE360 live order submission is disabled until protective execution safeguards are enabled.");
+                runtimePolicy.Code,
+                runtimePolicy.Reason);
         }
 
         if (!SymbolCache.TryGetSymbol(intent.Symbol, out var symbol))

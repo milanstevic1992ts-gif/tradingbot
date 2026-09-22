@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - "GE360.Trading.Core/**"
+      - "GE360.Trading.Validation/**"
       - "GE360.Trading.LeanAdapter/**"
       - "GE360.Trading.LeanAlgorithm/**"
       - "GE360.Trading.Research/**"
@@ -14,6 +15,7 @@ on:
   pull_request:
     paths:
       - "GE360.Trading.Core/**"
+      - "GE360.Trading.Validation/**"
       - "GE360.Trading.LeanAdapter/**"
       - "GE360.Trading.LeanAlgorithm/**"
       - "GE360.Trading.Research/**"

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace GE360.Trading.Research;
+namespace GE360.Trading.Validation;
 
 public sealed class ForwardPaperObservationStore
 {
@@ -16,6 +16,9 @@ public sealed class ForwardPaperObservationStore
     }
 
     public List<ForwardPaperSession> Sessions { get; }
+
+    public bool ContainsSession(DateTime sessionDate)
+        => Sessions.Any(x => x.SessionDate.Date == sessionDate.Date);
 
     public void Add(ForwardPaperSession session)
     {
@@ -34,7 +37,7 @@ public sealed class ForwardPaperObservationStore
                 nameof(session));
         }
 
-        if (Sessions.Any(x => x.SessionDate.Date == session.SessionDate.Date))
+        if (ContainsSession(session.SessionDate))
         {
             throw new InvalidOperationException(
                 $"Forward-paper session {session.SessionDate:yyyy-MM-dd} already exists.");
