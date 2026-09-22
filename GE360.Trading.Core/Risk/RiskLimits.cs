@@ -13,7 +13,10 @@ public sealed record RiskLimits(
     decimal MaxSpreadPercent,
     decimal MaxOrderNotional,
     TimeSpan MaxSignalAge,
-    bool RequireStopLoss)
+    bool RequireStopLoss,
+    decimal MinStopDistancePercent,
+    decimal MaxStopDistancePercent,
+    bool AllowShort)
 {
     public static RiskLimits ConservativePaperDefaults => new(
         MaxRiskPerTradePercent: 0.005m,
@@ -25,5 +28,8 @@ public sealed record RiskLimits(
         MaxSpreadPercent: 0.005m,
         MaxOrderNotional: 20_000m,
         MaxSignalAge: TimeSpan.FromMinutes(2),
-        RequireStopLoss: true);
+        RequireStopLoss: true,
+        MinStopDistancePercent: 0.001m,
+        MaxStopDistancePercent: 0.05m,
+        AllowShort: false);
 }

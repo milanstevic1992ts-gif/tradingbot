@@ -1,0 +1,30 @@
+name: GE360 Trading CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "GE360.Trading.Core/**"
+      - "GE360.Trading.Tests/**"
+      - ".github/workflows/ge360-ci.yml"
+  pull_request:
+    paths:
+      - "GE360.Trading.Core/**"
+      - "GE360.Trading.Tests/**"
+      - ".github/workflows/ge360-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Build core
+        run: dotnet build GE360.Trading.Core/GE360.Trading.Core.csproj --configuration Release
+      - name: Run GE360 tests
+        run: dotnet test GE360.Trading.Tests/GE360.Trading.Tests.csproj --configuration Release --no-restore
