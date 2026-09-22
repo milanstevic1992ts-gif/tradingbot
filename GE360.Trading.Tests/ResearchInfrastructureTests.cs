@@ -105,6 +105,49 @@ public sealed class ResearchInfrastructureTests
     }
 
     [Test]
+    public void ExternalCsvLoaderParsesProviderNeutralSchema()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            $"ge360-csv-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            var path = Path.Combine(directory, "bars.csv");
+            File.WriteAllText(
+                path,
+                "timestamp_utc,symbol,open,high,low,close,volume\n" +
+                "2026-09-01T13:30:00Z,SPY,500.10,500.30,499.95,500.20,152340\n" +
+                "2026-09-01T13:31:00Z,SPY,500.20,500.40,500.10,500.35,121000\n");
+
+            var bars = ExternalMinuteCsvLoader.Load(path);
+
+            Assert.That(bars.Count, Is.EqualTo(2));
+            Assert.That(bars[0].Symbol, Is.EqualTo("SPY"));
+            Assert.That(bars[0].UtcTime.Kind, Is.EqualTo(DateTimeKind.Utc));
+            Assert.That(bars[0].ExchangeLocalTime.Hour, Is.EqualTo(9));
+            Assert.That(bars[0].ExchangeLocalTime.Minute, Is.EqualTo(30));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Test]
+    public void DatasetQualityGateAcceptsContiguousMinuteHistory()
+    {
+        var bars = BuildContiguousQualityDataset();
+        var quality = DatasetQualityAssessment.Assess(bars);
+
+        Assert.That(quality.IsAdequateForPhase7, Is.True);
+        Assert.That(quality.CalendarSessionCount, Is.EqualTo(20));
+        Assert.That(quality.MedianBarsPerSymbolSession, Is.EqualTo(300m));
+        Assert.That(quality.DuplicateBarCount, Is.Zero);
+    }
+
+    [Test]
     public void BundledEquityDatasetMapsAllAvailableArchives()
     {
         var root = FindRepositoryRoot();
@@ -241,6 +284,46 @@ public sealed class ResearchInfrastructureTests
             101.6m,
             102.2m,
             1_500m));
+
+        return bars;
+    }
+
+    private static IReadOnlyList<IntradayBar> BuildContiguousQualityDataset()
+    {
+        var bars = new List<IntradayBar>();
+        var date = new DateTime(2026, 4, 1);
+        var sessions = 0;
+
+        while (sessions < 20)
+        {
+            if (date.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday)
+            {
+                for (var minute = 0; minute < 300; minute++)
+                {
+                    var local = DateTime.SpecifyKind(
+                        date.Date.AddHours(9).AddMinutes(30 + minute),
+                        DateTimeKind.Unspecified);
+
+                    var utc = DateTime.SpecifyKind(
+                        local.AddHours(4),
+                        DateTimeKind.Utc);
+
+                    bars.Add(new IntradayBar(
+                        "SPY",
+                        utc,
+                        local,
+                        100m,
+                        100.2m,
+                        99.8m,
+                        100m,
+                        10_000m));
+                }
+
+                sessions++;
+            }
+
+            date = date.AddDays(1);
+        }
 
         return bars;
     }

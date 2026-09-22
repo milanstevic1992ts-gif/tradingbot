@@ -1,5 +1,4 @@
 using System.Text.Json;
-using GE360.Trading.Features;
 
 namespace GE360.Trading.Research;
 
@@ -20,9 +19,16 @@ public static class Program
             return RunBundledEquityBatch(root, output);
         }
 
+        var csvDataset = GetOption(args, "--csv-dataset");
+        if (!string.IsNullOrWhiteSpace(csvDataset))
+        {
+            return RunExternalCsvDataset(root, csvDataset, output);
+        }
+
         Console.Error.WriteLine(
             "Usage: dotnet run --project GE360.Trading.Research -- " +
-            "(--bundled-spy-smoke | --bundled-equity-batch-smoke) [--output path]");
+            "(--bundled-spy-smoke | --bundled-equity-batch-smoke | --csv-dataset PATH) " +
+            "[--output path]");
         return 2;
     }
 
@@ -155,6 +161,100 @@ public static class Program
             "This bundled dataset is fragmented across symbols and years. " +
             "It is useful for engineering stress tests only and is explicitly " +
             "ineligible to complete phase 7.");
+
+        WriteReport(root, output, report);
+        return 0;
+    }
+
+    private static int RunExternalCsvDataset(
+        string root,
+        string datasetPath,
+        string? output)
+    {
+        var resolvedPath = Path.IsPathRooted(datasetPath)
+            ? datasetPath
+            : Path.GetFullPath(datasetPath, root);
+
+        var bars = ExternalMinuteCsvLoader.Load(resolvedPath);
+
+        if (bars.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "External CSV dataset does not contain any minute bars.");
+        }
+
+        var quality = DatasetQualityAssessment.Assess(bars);
+
+        if (quality.CalendarSessionCount < 2)
+        {
+            throw new InvalidOperationException(
+                "External CSV dataset requires at least two sessions for chronological validation.");
+        }
+
+        var sessions = bars
+            .Select(x => x.ExchangeLocalTime.Date)
+            .Distinct()
+            .OrderBy(x => x)
+            .ToArray();
+
+        var split = ResearchSplitBuilder.Chronological(
+            sessions,
+            0.70m);
+
+        var runner = new PortfolioResearchRunner();
+        var costs = ResearchCostModel.DeterministicSmokeDefaults;
+
+        var full = runner.Run(
+            bars,
+            costs: costs,
+            datasetAdequate: quality.IsAdequateForPhase7);
+
+        var inSampleDates = split.InSampleSessions.ToHashSet();
+        var outOfSampleDates = split.OutOfSampleSessions.ToHashSet();
+
+        var inSample = runner.Run(
+            bars.Where(x =>
+                inSampleDates.Contains(x.ExchangeLocalTime.Date)),
+            costs: costs,
+            datasetAdequate: quality.IsAdequateForPhase7);
+
+        var outOfSample = runner.Run(
+            bars.Where(x =>
+                outOfSampleDates.Contains(x.ExchangeLocalTime.Date)),
+            costs: costs,
+            datasetAdequate: quality.IsAdequateForPhase7);
+
+        var testSessions = sessions.Length >= 10 ? 5 : 1;
+        var trainingSessions = Math.Max(
+            1,
+            Math.Min(
+                sessions.Length - testSessions,
+                Math.Max(5, (int)Math.Floor(sessions.Length * 0.60m))));
+
+        var walkForwardPlan = WalkForwardPlan.Build(
+            sessions,
+            trainingSessions,
+            testSessions,
+            stepSessions: testSessions);
+
+        var walkForward = WalkForwardEvaluator.Evaluate(
+            runner,
+            bars,
+            walkForwardPlan,
+            costs: costs);
+
+        var report = new ExternalPortfolioResearchReport(
+            DateTime.UtcNow,
+            resolvedPath,
+            quality,
+            full,
+            inSample,
+            outOfSample,
+            split,
+            walkForward,
+            quality.IsAdequateForPhase7
+                ? "Dataset passed engineering quality checks. OOS/walk-forward/forward-paper results still determine whether phase 7 can advance."
+                : "Dataset failed engineering quality checks and cannot complete phase 7.");
 
         WriteReport(root, output, report);
         return 0;

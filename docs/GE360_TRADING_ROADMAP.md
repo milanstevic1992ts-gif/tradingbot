@@ -18,6 +18,7 @@ Market data
   -> portfolio risk
   -> pre-trade risk gate
   -> approved order intent
+  -> execution guard
   -> LEAN adapter/execution
   -> brokerage
 ```
@@ -69,19 +70,48 @@ A strategy must never own a brokerage reference or submit an order directly.
 7. **Research and validation — IN PROGRESS**
    - [x] unit tests for risk, protection, strategy, feature and execution behavior.
    - [x] deterministic research harness reusing production Strategy V1 + Risk + Protection.
-   - [x] explicit fee/slippage cost model.
+   - [x] shared-portfolio multi-symbol research runner.
+   - [x] production `ExecutionGuard` enforced in portfolio research before simulated fills.
+   - [x] explicit fee/slippage cost model and synthetic spread assumption.
    - [x] historical LEAN bundled-data smoke test.
    - [x] chronological in-sample/out-of-sample split without future leakage.
-   - [x] walk-forward window generator.
+   - [x] walk-forward windows executed on the bundled engineering dataset.
    - [x] LEAN paper/backtest reality model with explicit deterministic fee/slippage assumptions.
    - [x] mandatory 15:55 New York no-new-risk / protected flatten boundary.
    - [x] live submission remains disabled by default.
-   - [ ] run OOS + walk-forward on an adequate minute-history dataset.
-   - [ ] reach the configurable minimum engineering sample gate (default: 20 sessions AND 30 closed trades).
+   - [x] provider-neutral external minute CSV loader.
+   - [x] automatic dataset continuity/depth/duplicate quality assessment.
+   - [ ] load an adequate continuous minute-history dataset.
+   - [ ] run OOS + walk-forward on that adequate dataset.
+   - [ ] reach the configurable count gate on an adequate dataset (default: 20 sessions AND 30 closed trades).
    - [ ] complete a forward paper-trading observation period before any live brokerage mode.
 
-   **Validation rule:** the bundled SPY sample (2013-10-07 through 2013-10-11) is only a smoke dataset.
-   It must never be presented as evidence of profitability or statistical significance.
+### Current bundled-data evidence
+
+The bundled LEAN equity dataset contains 41 minute trade archives, 10 symbols, 20 distinct calendar sessions and 41 symbol/session combinations.
+
+The cross-symbol engineering run produced 108 closed trades. This exceeds the raw count gate, but the dataset is fragmented across 2008–2023 and therefore receives:
+
+**`EngineeringSampleOnly` — NOT phase-7 validated.**
+
+Observed bundled engineering metrics with the current deterministic cost assumptions:
+
+- full sample: 108 trades, 28.70% win rate, net P&L about -$1,316.59, profit factor about 0.297;
+- chronological out-of-sample: 15 trades, 13.33% win rate, net P&L about -$265.28, profit factor about 0.125;
+- every executed walk-forward test window containing trades was net negative.
+
+These values are diagnostic evidence that Strategy V1 must not be promoted to live trading. They must not be used as profitability claims or as a tuning target for overfitting.
+
+### Dataset-quality gate
+
+External CSV research data is automatically checked independently from strategy performance. Default engineering checks:
+
+- at least 20 distinct calendar sessions;
+- at least 75% weekday coverage over the dataset span;
+- median of at least 300 minute bars per symbol/session;
+- zero duplicate `symbol + timestamp` bars.
+
+See `docs/GE360_RESEARCH_DATA.md`.
 
 8. **Recovery/reconciliation — NOT STARTED**
    - compare local positions/orders with broker state at startup.
@@ -96,10 +126,10 @@ A strategy must never own a brokerage reference or submit an order directly.
 
 Phase 7 is complete only when all of the following are true:
 
-1. a sufficiently broad minute-history dataset has been loaded;
+1. an adequate continuous minute-history dataset passes the automatic data-quality gate;
 2. chronological out-of-sample results have been produced with explicit costs;
 3. walk-forward windows have been executed without future leakage;
-4. the minimum engineering sample gate is reached;
+4. the count gate is reached on that adequate dataset;
 5. forward paper trading has been observed;
 6. no live-broker submission is enabled during validation.
 
