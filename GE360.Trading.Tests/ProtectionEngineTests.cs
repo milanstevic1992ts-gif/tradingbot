@@ -54,12 +54,25 @@ public sealed class ProtectionEngineTests
     {
         var engine = NewEngine(maxRejections: 3);
 
-        engine.RecordRiskDecision(RiskDecision.Reject("R1", "one"));
-        engine.RecordRiskDecision(RiskDecision.Reject("R2", "two"));
-        engine.RecordRiskDecision(RiskDecision.Reject("R3", "three"));
+        engine.RecordRiskDecision(RiskDecision.Reject("R1", "one", countsTowardRejectionStorm: true));
+        engine.RecordRiskDecision(RiskDecision.Reject("R2", "two", countsTowardRejectionStorm: true));
+        engine.RecordRiskDecision(RiskDecision.Reject("R3", "three", countsTowardRejectionStorm: true));
 
         Assert.That(engine.IsHalted, Is.True);
         Assert.That(engine.Evaluate(NewSignal(SignalDirection.Long), Now).Allowed, Is.False);
+    }
+
+    [Test]
+    public void ExpectedRiskRejectionsDoNotTriggerStorm()
+    {
+        var engine = NewEngine(maxRejections: 3);
+
+        engine.RecordRiskDecision(RiskDecision.Reject("STOP_TOO_TIGHT", "normal control"));
+        engine.RecordRiskDecision(RiskDecision.Reject("SPREAD_TOO_WIDE", "normal control"));
+        engine.RecordRiskDecision(RiskDecision.Reject("ZERO_SIZE", "normal control"));
+
+        Assert.That(engine.IsHalted, Is.False);
+        Assert.That(engine.ConsecutiveRiskRejections, Is.Zero);
     }
 
     [Test]
@@ -77,7 +90,7 @@ public sealed class ProtectionEngineTests
     public void ApprovedDecisionClearsRejectionStreak()
     {
         var engine = NewEngine(maxRejections: 3);
-        engine.RecordRiskDecision(RiskDecision.Reject("R1", "one"));
+        engine.RecordRiskDecision(RiskDecision.Reject("R1", "one", countsTowardRejectionStorm: true));
         engine.RecordRiskDecision(RiskDecision.Approve(1m));
 
         Assert.That(engine.ConsecutiveRiskRejections, Is.Zero);

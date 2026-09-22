@@ -94,6 +94,23 @@ public sealed class OpeningRangeMomentumStrategyTests
     }
 
     [Test]
+    public void StopHasConfiguredMinimumDistance()
+    {
+        var strategy = new OpeningRangeMomentumStrategy();
+
+        var signal = strategy.Evaluate(NewContext(
+            price: 102m,
+            vwap: 100m,
+            openingRangeHigh: 101m,
+            relativeVolume: 2m)).Single();
+
+        var stopDistancePercent =
+            (signal.ReferencePrice - signal.SuggestedStopPrice!.Value) / signal.ReferencePrice;
+
+        Assert.That(stopDistancePercent, Is.GreaterThanOrEqualTo(0.0015m));
+    }
+
+    [Test]
     public void ConfidenceRemainsBounded()
     {
         var strategy = new OpeningRangeMomentumStrategy();

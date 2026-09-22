@@ -33,7 +33,8 @@ public sealed class DefaultPreTradeRiskGate : IPreTradeRiskGate
         {
             return RiskDecision.Reject(
                 "RISK_GATE_ERROR",
-                $"Risk evaluation failed closed: {exception.GetType().Name}.");
+                $"Risk evaluation failed closed: {exception.GetType().Name}.",
+                countsTowardRejectionStorm: true);
         }
     }
 
@@ -44,7 +45,7 @@ public sealed class DefaultPreTradeRiskGate : IPreTradeRiskGate
     {
         if (!string.Equals(signal.Symbol, market.Symbol, StringComparison.OrdinalIgnoreCase))
         {
-            return RiskDecision.Reject("SYMBOL_MISMATCH", "Signal and market snapshot symbols differ.");
+            return RiskDecision.Reject("SYMBOL_MISMATCH", "Signal and market snapshot symbols differ.", countsTowardRejectionStorm: true);
         }
 
         if (portfolio.Equity <= 0m)
@@ -106,7 +107,7 @@ public sealed class DefaultPreTradeRiskGate : IPreTradeRiskGate
 
         if (market.LastPrice <= 0m)
         {
-            return RiskDecision.Reject("INVALID_PRICE", "Market price must be positive.");
+            return RiskDecision.Reject("INVALID_PRICE", "Market price must be positive.", countsTowardRejectionStorm: true);
         }
 
         if (market.SpreadPercent > _limits.MaxSpreadPercent)
@@ -142,22 +143,22 @@ public sealed class DefaultPreTradeRiskGate : IPreTradeRiskGate
     {
         if (signal.SignalTimeUtc > portfolio.UtcTime + TimeSpan.FromSeconds(5))
         {
-            return RiskDecision.Reject("FUTURE_SIGNAL", "Signal timestamp is in the future.");
+            return RiskDecision.Reject("FUTURE_SIGNAL", "Signal timestamp is in the future.", countsTowardRejectionStorm: true);
         }
 
         if (market.UtcTime > portfolio.UtcTime + TimeSpan.FromSeconds(5))
         {
-            return RiskDecision.Reject("FUTURE_MARKET_DATA", "Market snapshot timestamp is in the future.");
+            return RiskDecision.Reject("FUTURE_MARKET_DATA", "Market snapshot timestamp is in the future.", countsTowardRejectionStorm: true);
         }
 
         if (portfolio.UtcTime - signal.SignalTimeUtc > _limits.MaxSignalAge)
         {
-            return RiskDecision.Reject("STALE_SIGNAL", "Signal is older than the maximum allowed age.");
+            return RiskDecision.Reject("STALE_SIGNAL", "Signal is older than the maximum allowed age.", countsTowardRejectionStorm: true);
         }
 
         if (portfolio.UtcTime - market.UtcTime > _limits.MaxSignalAge)
         {
-            return RiskDecision.Reject("STALE_MARKET_DATA", "Market data is older than the maximum allowed age.");
+            return RiskDecision.Reject("STALE_MARKET_DATA", "Market data is older than the maximum allowed age.", countsTowardRejectionStorm: true);
         }
 
         return null;

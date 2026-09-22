@@ -5,11 +5,16 @@ public sealed record RiskDecision(
     string Code,
     string Reason,
     decimal ApprovedQuantity = 0m,
-    bool TriggerHalt = false)
+    bool TriggerHalt = false,
+    bool CountsTowardRejectionStorm = false)
 {
-    public static RiskDecision Reject(string code, string reason, bool triggerHalt = false)
-        => new(false, code, reason, 0m, triggerHalt);
+    public static RiskDecision Reject(
+        string code,
+        string reason,
+        bool triggerHalt = false,
+        bool countsTowardRejectionStorm = false)
+        => new(false, code, reason, 0m, triggerHalt, countsTowardRejectionStorm);
 
     public static RiskDecision Approve(decimal quantity)
-        => new(true, "APPROVED", "Risk checks passed.", quantity, false);
+        => new(true, "APPROVED", "Risk checks passed.", quantity, false, false);
 }

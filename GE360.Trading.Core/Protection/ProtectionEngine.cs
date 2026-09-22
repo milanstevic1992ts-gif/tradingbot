@@ -99,17 +99,24 @@ public sealed class ProtectionEngine
             return;
         }
 
-        _consecutiveRiskRejections++;
-
         if (decision.TriggerHalt)
         {
             Halt($"Risk gate requested halt: {decision.Code}.");
             return;
         }
 
+        // Expected trading rejections (spread, stop geometry, no capacity, etc.)
+        // are normal controls and must never accumulate into a system halt.
+        if (!decision.CountsTowardRejectionStorm)
+        {
+            return;
+        }
+
+        _consecutiveRiskRejections++;
+
         if (_consecutiveRiskRejections >= _config.MaxConsecutiveRiskRejections)
         {
-            Halt($"Risk rejection storm: {_consecutiveRiskRejections} consecutive rejections.");
+            Halt($"Structural risk rejection storm: {_consecutiveRiskRejections} consecutive failures.");
         }
     }
 

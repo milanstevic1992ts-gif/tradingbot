@@ -7,6 +7,7 @@ public sealed record OpeningRangeMomentumConfig(
     decimal BreakoutBufferPercent,
     decimal MaximumSignalSpreadPercent,
     decimal StopAtrMultiple,
+    decimal MinimumStopDistancePercent,
     decimal TakeProfitRiskReward,
     TimeSpan MinimumSignalInterval)
 {
@@ -17,6 +18,7 @@ public sealed record OpeningRangeMomentumConfig(
         BreakoutBufferPercent: 0.001m,
         MaximumSignalSpreadPercent: 0.003m,
         StopAtrMultiple: 1.0m,
+        MinimumStopDistancePercent: 0.0015m,
         TakeProfitRiskReward: 2.0m,
         MinimumSignalInterval: TimeSpan.FromMinutes(5));
 }

@@ -79,7 +79,9 @@ public sealed class OpeningRangeMomentumStrategy : IGe360Strategy
                 continue;
             }
 
-            var stopDistance = market.Atr.Value * _config.StopAtrMultiple;
+            var atrStopDistance = market.Atr.Value * _config.StopAtrMultiple;
+            var minimumStopDistance = market.LastPrice * _config.MinimumStopDistancePercent;
+            var stopDistance = Math.Max(atrStopDistance, minimumStopDistance);
             if (stopDistance <= 0m || stopDistance >= market.LastPrice)
             {
                 continue;
@@ -137,6 +139,7 @@ public sealed class OpeningRangeMomentumStrategy : IGe360Strategy
             config.BreakoutBufferPercent < 0m ||
             config.MaximumSignalSpreadPercent < 0m ||
             config.StopAtrMultiple <= 0m ||
+            config.MinimumStopDistancePercent <= 0m ||
             config.TakeProfitRiskReward <= 0m ||
             config.MinimumSignalInterval < TimeSpan.Zero)
         {
