@@ -85,7 +85,8 @@ A strategy must never own a brokerage reference or submit an order directly.
    - [ ] load an adequate continuous minute-history dataset.
    - [ ] run OOS + walk-forward on that adequate dataset.
    - [ ] reach the configurable count gate on an adequate dataset (default: 20 sessions AND 30 closed trades).
-   - [ ] complete a forward paper-trading observation period before any live brokerage mode.
+   - [x] authoritative forward-paper observation store and phase-7 gate implemented.
+   - [ ] complete 20 qualifying forward-paper sessions before any live brokerage mode.
 
 ### Current bundled-data evidence
 
@@ -114,7 +115,7 @@ External CSV research data is automatically checked independently from strategy 
 
 Optional historical providers must convert into the same neutral data model before research. Provider credentials must never be stored in source control.
 
-See `docs/GE360_RESEARCH_DATA.md`.
+See `docs/GE360_RESEARCH_DATA.md` and `docs/GE360_FORWARD_PAPER.md`.
 
 8. **Recovery/reconciliation — NOT STARTED**
    - compare local positions/orders with broker state at startup.
@@ -133,7 +134,7 @@ Phase 7 is complete only when all of the following are true:
 2. chronological out-of-sample results have been produced with explicit costs;
 3. walk-forward windows have been executed without future leakage;
 4. the count gate is reached on that adequate dataset;
-5. forward paper trading has been observed;
+5. the authoritative forward-paper store contains at least 20 qualifying sessions with zero structural failures and zero live-submission attempts;
 6. no live-broker submission is enabled during validation.
 
 Passing this gate does **not** imply future profitability. It only permits engineering work to proceed to phase 8.

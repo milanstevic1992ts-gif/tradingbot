@@ -10,6 +10,15 @@ public static class Program
         var root = FindRepositoryRoot();
         var output = GetOption(args, "--output");
 
+        if (Phase7CommandLine.TryHandle(
+                args,
+                root,
+                output,
+                out var phase7ExitCode))
+        {
+            return phase7ExitCode;
+        }
+
         if (args.Contains("--bundled-spy-smoke", StringComparer.OrdinalIgnoreCase))
         {
             return RunBundledSpySmoke(root, output);

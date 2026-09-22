@@ -281,3 +281,6 @@ Research/Notebooks
 #Docker result files
 Results/
 QuantConnect.Lean.sln.DotSettings
+
+# GE360 runtime research/paper state
+ge360-state/
