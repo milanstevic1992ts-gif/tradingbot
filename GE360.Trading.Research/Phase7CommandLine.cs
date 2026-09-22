@@ -18,6 +18,12 @@ public static class Phase7CommandLine
             return true;
         }
 
+        if (args.Contains("--paper-summary", StringComparer.OrdinalIgnoreCase))
+        {
+            exitCode = ShowPaperSummary(args, repositoryRoot, output);
+            return true;
+        }
+
         if (args.Contains("--phase7-gate", StringComparer.OrdinalIgnoreCase))
         {
             exitCode = EvaluateGate(args, repositoryRoot, output);
@@ -88,6 +94,36 @@ public static class Phase7CommandLine
             $"GE360 forward-paper session recorded: {sessionDate:yyyy-MM-dd}. " +
             $"Qualifying sessions: {summary.QualifyingSessions}/{summary.MinimumRequiredSessions}.");
 
+        return 0;
+    }
+
+    private static int ShowPaperSummary(
+        string[] args,
+        string repositoryRoot,
+        string? output)
+    {
+        var paperStorePath = ResolvePath(
+            repositoryRoot,
+            GetRequiredOption(args, "--paper-store"));
+
+        var store = ForwardPaperObservationStore.Load(paperStorePath);
+        var summary = store.Summarize();
+        var json = JsonSerializer.Serialize(summary, JsonOptions());
+
+        if (!string.IsNullOrWhiteSpace(output))
+        {
+            var outputPath = ResolvePath(repositoryRoot, output);
+            var directory = Path.GetDirectoryName(outputPath);
+
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(outputPath, json);
+        }
+
+        Console.WriteLine(json);
         return 0;
     }
 

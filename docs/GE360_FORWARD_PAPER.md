@@ -107,6 +107,60 @@ The script:
 
 Runtime-generated `ge360-state/` and `ge360-plugins/` are ignored by Git.
 
+
+## Install as a Debian systemd service
+
+For persistent operation on Debian, install the service from the repository root:
+
+```bash
+bash scripts/ge360-install-paper-service.sh
+```
+
+The installer:
+
+- creates `/etc/ge360/trading-paper.env` with mode `0600`;
+- creates/enables `ge360-trading-paper.service`;
+- runs the service as the invoking non-root user by default;
+- persists observations in `ge360-state/forward-paper.json`;
+- refuses to start while Alpaca credentials are empty;
+- restarts after runtime failures without changing the paper/live safety policy.
+
+After installation, edit only the protected environment file:
+
+```bash
+sudo nano /etc/ge360/trading-paper.env
+```
+
+Set:
+
+```text
+APCA_API_KEY_ID=...
+APCA_API_SECRET_KEY=...
+```
+
+Then start:
+
+```bash
+sudo systemctl start ge360-trading-paper
+```
+
+To inspect service state, recent logs and the authoritative paper-session counter:
+
+```bash
+bash scripts/ge360-paper-status.sh
+```
+
+The same summary is available directly:
+
+```bash
+dotnet run \
+  --project GE360.Trading.Research/GE360.Trading.Research.csproj \
+  --configuration Release \
+  -- \
+  --paper-summary \
+  --paper-store ge360-state/forward-paper.json
+```
+
 ## Manual session import / recovery
 
 Automatic recording is the normal path. The manual command exists for controlled recovery or importing a verified observation:
