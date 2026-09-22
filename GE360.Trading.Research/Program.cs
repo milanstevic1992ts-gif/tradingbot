@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace GE360.Trading.Research;
@@ -19,6 +20,13 @@ public static class Program
             return RunBundledEquityBatch(root, output);
         }
 
+        if (args.Contains("--alpaca-download", StringComparer.OrdinalIgnoreCase))
+        {
+            return RunAlpacaDownloadAsync(root, args, output)
+                .GetAwaiter()
+                .GetResult();
+        }
+
         var csvDataset = GetOption(args, "--csv-dataset");
         if (!string.IsNullOrWhiteSpace(csvDataset))
         {
@@ -27,8 +35,9 @@ public static class Program
 
         Console.Error.WriteLine(
             "Usage: dotnet run --project GE360.Trading.Research -- " +
-            "(--bundled-spy-smoke | --bundled-equity-batch-smoke | --csv-dataset PATH) " +
-            "[--output path]");
+            "(--bundled-spy-smoke | --bundled-equity-batch-smoke | --csv-dataset PATH | --alpaca-download) " +
+            "[--symbols SPY,AAPL --start YYYY-MM-DD --end YYYY-MM-DD --feed iex --output-data PATH] " +
+            "[--output report.json]");
         return 2;
     }
 
@@ -166,6 +175,68 @@ public static class Program
         return 0;
     }
 
+    private static async Task<int> RunAlpacaDownloadAsync(
+        string root,
+        string[] args,
+        string? output)
+    {
+        var symbolsOption = GetRequiredOption(args, "--symbols");
+        var startOption = GetRequiredOption(args, "--start");
+        var endOption = GetRequiredOption(args, "--end");
+
+        var symbols = symbolsOption
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => x.ToUpperInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (symbols.Length == 0)
+        {
+            throw new ArgumentException("--symbols must contain at least one ticker.");
+        }
+
+        var start = ParseUtcBoundary(startOption, inclusiveEnd: false);
+        var end = ParseUtcBoundary(endOption, inclusiveEnd: true);
+        var feed = GetOption(args, "--feed") ?? "iex";
+        var adjustment = GetOption(args, "--adjustment") ?? "all";
+        var dataOutput = GetOption(args, "--output-data")
+            ?? Path.Combine("artifacts", "ge360-alpaca-minute.csv");
+
+        var resolvedDataOutput = Path.IsPathRooted(dataOutput)
+            ? dataOutput
+            : Path.GetFullPath(dataOutput, root);
+
+        using var httpClient = new HttpClient();
+        var downloader = AlpacaHistoricalDownloader.FromEnvironment(httpClient);
+
+        var result = await downloader.DownloadAsync(
+            new AlpacaHistoricalDownloadRequest(
+                symbols,
+                start,
+                end,
+                feed,
+                adjustment));
+
+        if (result.Bars.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "Alpaca returned zero minute bars for the requested symbols/date range.");
+        }
+
+        AlpacaHistoricalDownloader.WriteNeutralCsv(
+            resolvedDataOutput,
+            result.Bars);
+
+        Console.WriteLine(
+            $"GE360 Alpaca download complete: {result.Bars.Count} bars, " +
+            $"{result.PageCount} page(s), feed={result.Feed}, file={resolvedDataOutput}");
+
+        return RunExternalCsvDataset(
+            root,
+            resolvedDataOutput,
+            output);
+    }
+
     private static int RunExternalCsvDataset(
         string root,
         string datasetPath,
@@ -260,6 +331,44 @@ public static class Program
         return 0;
     }
 
+    private static DateTimeOffset ParseUtcBoundary(
+        string value,
+        bool inclusiveEnd)
+    {
+        if (DateOnly.TryParseExact(
+                value,
+                "yyyy-MM-dd",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var date))
+        {
+            var startOfDay = new DateTimeOffset(
+                date.Year,
+                date.Month,
+                date.Day,
+                0,
+                0,
+                0,
+                TimeSpan.Zero);
+
+            return inclusiveEnd
+                ? startOfDay.AddDays(1).AddTicks(-1)
+                : startOfDay;
+        }
+
+        if (!DateTimeOffset.TryParse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var timestamp))
+        {
+            throw new ArgumentException(
+                $"Unable to parse UTC date/time '{value}'.");
+        }
+
+        return timestamp.ToUniversalTime();
+    }
+
     private static void WriteReport<T>(
         string root,
         string? output,
@@ -298,6 +407,13 @@ public static class Program
         throw new DirectoryNotFoundException(
             "Unable to locate tradingbot repository root.");
     }
+
+    private static string GetRequiredOption(
+        string[] args,
+        string name)
+        => GetOption(args, name)
+           ?? throw new ArgumentException(
+               $"Required option {name} was not provided.");
 
     private static string? GetOption(string[] args, string name)
     {

@@ -81,6 +81,7 @@ A strategy must never own a brokerage reference or submit an order directly.
    - [x] live submission remains disabled by default.
    - [x] provider-neutral external minute CSV loader.
    - [x] automatic dataset continuity/depth/duplicate quality assessment.
+   - [x] optional authenticated Alpaca historical 1-minute downloader feeding the neutral CSV pipeline.
    - [ ] load an adequate continuous minute-history dataset.
    - [ ] run OOS + walk-forward on that adequate dataset.
    - [ ] reach the configurable count gate on an adequate dataset (default: 20 sessions AND 30 closed trades).
@@ -110,6 +111,8 @@ External CSV research data is automatically checked independently from strategy 
 - at least 75% weekday coverage over the dataset span;
 - median of at least 300 minute bars per symbol/session;
 - zero duplicate `symbol + timestamp` bars.
+
+Optional historical providers must convert into the same neutral data model before research. Provider credentials must never be stored in source control.
 
 See `docs/GE360_RESEARCH_DATA.md`.
 

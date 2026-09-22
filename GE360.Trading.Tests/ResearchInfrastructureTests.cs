@@ -105,6 +105,67 @@ public sealed class ResearchInfrastructureTests
     }
 
     [Test]
+    public void AlpacaPageParserParsesMultiSymbolBarsAndNextToken()
+    {
+        const string json = """
+        {
+          "bars": {
+            "AAPL": [
+              {
+                "t": "2026-09-01T13:30:00Z",
+                "o": 230.10,
+                "h": 230.40,
+                "l": 229.90,
+                "c": 230.25,
+                "v": 120000
+              }
+            ],
+            "SPY": [
+              {
+                "t": "2026-09-01T13:30:00Z",
+                "o": 650.10,
+                "h": 650.30,
+                "l": 649.80,
+                "c": 650.20,
+                "v": 250000
+              }
+            ]
+          },
+          "next_page_token": "NEXT123"
+        }
+        """;
+
+        var page = AlpacaHistoricalBarPageParser.Parse(json);
+
+        Assert.That(page.Bars.Count, Is.EqualTo(2));
+        Assert.That(page.Bars.Select(x => x.Symbol).OrderBy(x => x).ToArray(),
+            Is.EqualTo(new[] { "AAPL", "SPY" }));
+        Assert.That(page.NextPageToken, Is.EqualTo("NEXT123"));
+        Assert.That(page.Bars.All(x => x.ExchangeLocalTime.Hour == 9), Is.True);
+    }
+
+    [Test]
+    public void AlpacaRequestUriUsesOneMinuteBarsAndPagination()
+    {
+        var uri = AlpacaHistoricalDownloader.BuildRequestUri(
+            new AlpacaHistoricalDownloadRequest(
+                new[] { "SPY", "AAPL" },
+                new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 8, 31, 23, 59, 59, TimeSpan.Zero),
+                Feed: "iex",
+                Adjustment: "all"),
+            "TOKEN");
+
+        var text = uri.ToString();
+
+        Assert.That(text, Does.Contain("timeframe=1Min"));
+        Assert.That(text, Does.Contain("symbols=SPY%2CAAPL"));
+        Assert.That(text, Does.Contain("feed=iex"));
+        Assert.That(text, Does.Contain("adjustment=all"));
+        Assert.That(text, Does.Contain("page_token=TOKEN"));
+    }
+
+    [Test]
     public void ExternalCsvLoaderParsesProviderNeutralSchema()
     {
         var directory = Path.Combine(
