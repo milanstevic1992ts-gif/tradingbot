@@ -45,9 +45,18 @@ public sealed class LeanExecutionAdapter
 
         if (!SymbolCache.TryGetSymbol(intent.Symbol, out var symbol))
         {
-            return LeanExecutionResult.Reject(
-                "UNKNOWN_SYMBOL",
-                $"LEAN cannot resolve symbol '{intent.Symbol}'.");
+            symbol = _algorithm.Securities.Keys.FirstOrDefault(candidate =>
+                string.Equals(
+                    candidate.Value,
+                    intent.Symbol,
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (symbol is null)
+            {
+                return LeanExecutionResult.Reject(
+                    "UNKNOWN_SYMBOL",
+                    $"LEAN cannot resolve symbol '{intent.Symbol}'.");
+            }
         }
 
         if (!_algorithm.Securities.ContainsKey(symbol))

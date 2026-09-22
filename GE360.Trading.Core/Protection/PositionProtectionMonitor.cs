@@ -36,6 +36,48 @@ public sealed class PositionProtectionMonitor
             false);
     }
 
+    public void Restore(
+        string strategyId,
+        string symbol,
+        decimal quantity,
+        decimal? stopPrice,
+        decimal? takeProfitPrice)
+    {
+        if (string.IsNullOrWhiteSpace(strategyId))
+        {
+            throw new ArgumentException(
+                "Strategy id is required for protection recovery.",
+                nameof(strategyId));
+        }
+
+        if (string.IsNullOrWhiteSpace(symbol))
+        {
+            throw new ArgumentException(
+                "Symbol is required for protection recovery.",
+                nameof(symbol));
+        }
+
+        if (quantity == 0m)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(quantity),
+                "Recovered protection requires a non-zero position.");
+        }
+
+        if (stopPrice is null && takeProfitPrice is null)
+        {
+            throw new ArgumentException(
+                "Recovered protection requires a stop or take-profit level.");
+        }
+
+        _states[symbol.Trim().ToUpperInvariant()] = new ProtectionState(
+            strategyId.Trim(),
+            quantity > 0m,
+            stopPrice,
+            takeProfitPrice,
+            false);
+    }
+
     public SignalIntent? Evaluate(
         MarketSnapshot market,
         PortfolioSnapshot portfolio,

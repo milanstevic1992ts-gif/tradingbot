@@ -29,6 +29,7 @@ if [ ! -f "$ENV_PATH" ]; then
 APCA_API_KEY_ID=
 APCA_API_SECRET_KEY=
 GE360_FORWARD_PAPER_STORE=$ROOT/ge360-state/forward-paper.json
+GE360_RECOVERY_CHECKPOINT=$ROOT/ge360-state/recovery-checkpoint.json
 EOF
 fi
 

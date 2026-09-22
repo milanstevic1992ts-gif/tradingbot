@@ -81,11 +81,14 @@ export APCA_API_KEY_ID="..."
 export APCA_API_SECRET_KEY="..."
 ```
 
-Optionally choose another persistent observation-store path:
+Optionally choose persistent runtime-state paths:
 
 ```bash
 export GE360_FORWARD_PAPER_STORE="$PWD/ge360-state/forward-paper.json"
+export GE360_RECOVERY_CHECKPOINT="$PWD/ge360-state/recovery-checkpoint.json"
 ```
+
+The recovery checkpoint stores GE360's last expected positions, protective stop/target metadata and open-order state. It is used only for fail-closed restart reconciliation.
 
 Then run:
 

@@ -3,6 +3,7 @@ using GE360.Trading.Execution;
 using GE360.Trading.Features;
 using GE360.Trading.LeanAdapter;
 using GE360.Trading.Protection;
+using GE360.Trading.Recovery;
 using GE360.Trading.Risk;
 using GE360.Trading.Strategies;
 using QuantConnect;
@@ -35,6 +36,7 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
     private LeanExecutionAdapter _execution = null!;
     private PositionProtectionMonitor _positionProtection = null!;
     private LeanForwardPaperRecorder? _forwardPaperRecorder;
+    private LeanRecoveryCoordinator? _recoveryCoordinator;
 
     private decimal _peakEquity;
     private decimal _dayStartEquity;
@@ -90,6 +92,16 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
 
             Debug(
                 $"GE360 forward-paper recorder enabled: {_forwardPaperRecorder.StorePath}");
+
+            var recoveryPath = Environment.GetEnvironmentVariable(
+                LeanRecoveryCoordinator.CheckpointPathEnvironmentVariable);
+
+            _recoveryCoordinator = new LeanRecoveryCoordinator(
+                recoveryPath,
+                log: message => Debug(message));
+
+            Debug(
+                $"GE360 recovery checkpoint enabled: {_recoveryCoordinator.CheckpointPath}");
         }
 
         _peakEquity = Portfolio.TotalPortfolioValue;
@@ -116,22 +128,41 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
                 bar.Close,
                 bar.Volume));
 
-            if (featureOutput is null)
-            {
-                return;
-            }
-
             var security = Securities[_symbol];
-            var lastPrice = security.Price > 0m ? security.Price : bar.Close;
-            var bidPrice = security.BidPrice > 0m ? security.BidPrice : lastPrice;
-            var askPrice = security.AskPrice > 0m ? security.AskPrice : lastPrice;
+            var lastPrice = security.Price > 0m
+                ? security.Price
+                : bar.Close;
+            var bidPrice = security.BidPrice > 0m
+                ? security.BidPrice
+                : lastPrice;
+            var askPrice = security.AskPrice > 0m
+                ? security.AskPrice
+                : lastPrice;
 
-            var market = featureOutput.Market with
+            var market = (featureOutput?.Market ??
+                new MarketSnapshot(
+                    AssetTicker,
+                    UtcTime,
+                    lastPrice,
+                    bidPrice,
+                    askPrice,
+                    bar.Volume,
+                    null)) with
             {
                 LastPrice = lastPrice,
                 BidPrice = bidPrice,
                 AskPrice = askPrice
             };
+
+            if (!EnsureRecoveryReady(market))
+            {
+                return;
+            }
+
+            if (featureOutput is null)
+            {
+                return;
+            }
 
             var portfolio = BuildPortfolioSnapshot(market);
 
@@ -193,16 +224,43 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
                 bar.EndTime,
                 Portfolio.TotalPortfolioValue,
                 Portfolio.Invested);
+
+            if (_recoveryCoordinator?.StartupComplete == true &&
+                !_recoveryCoordinator.PersistRuntime(
+                    this,
+                    gracefulShutdown: false))
+            {
+                _forwardPaperRecorder?.RecordStructuralFailure(
+                    "recovery-checkpoint-persistence-failed");
+            }
         }
     }
 
     public override void OnOrderEvent(OrderEvent orderEvent)
     {
         _forwardPaperRecorder?.ObserveOrderEvent(orderEvent);
+
+        if (_recoveryCoordinator?.StartupComplete == true &&
+            !_recoveryCoordinator.PersistRuntime(
+                this,
+                gracefulShutdown: false))
+        {
+            _forwardPaperRecorder?.RecordStructuralFailure(
+                "recovery-checkpoint-persistence-failed-after-order-event");
+        }
     }
 
     public override void OnEndOfAlgorithm()
     {
+        if (_recoveryCoordinator is not null &&
+            !_recoveryCoordinator.PersistRuntime(
+                this,
+                gracefulShutdown: true))
+        {
+            _forwardPaperRecorder?.RecordStructuralFailure(
+                "recovery-checkpoint-persistence-failed-at-shutdown");
+        }
+
         _forwardPaperRecorder?.FinalizeAtShutdown(
             UtcTime,
             Time,
@@ -214,6 +272,129 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
             throw new InvalidOperationException(
                 "GE360 intraday invariant violated: algorithm ended with an open position.");
         }
+    }
+
+    private bool EnsureRecoveryReady(
+        MarketSnapshot currentMarket)
+    {
+        if (_recoveryCoordinator is null)
+        {
+            return true;
+        }
+
+        if (_recoveryCoordinator.StartupComplete &&
+            _recoveryCoordinator.PersistenceHealthy)
+        {
+            return true;
+        }
+
+        RecoveryReconciliationResult result;
+
+        if (!_recoveryCoordinator.StartupComplete)
+        {
+            result = _recoveryCoordinator.ReconcileStartup(
+                this,
+                _positionProtection);
+        }
+        else
+        {
+            var actual = _recoveryCoordinator.Capture(this);
+
+            if (actual.IsFlat &&
+                !actual.HasOpenOrders &&
+                _recoveryCoordinator.PersistRuntime(
+                    this,
+                    gracefulShutdown: false))
+            {
+                Debug(
+                    "GE360 recovery checkpoint persistence restored while flat.");
+                return false;
+            }
+
+            result = RecoveryReconciliationResult.Reduce(
+                actual,
+                new[]
+                {
+                    "CHECKPOINT_PERSISTENCE_UNHEALTHY",
+                    _recoveryCoordinator.LastError ?? "unknown"
+                });
+        }
+
+        Debug(
+            $"GE360 RECOVERY {result.Mode}: {string.Join(" | ", result.Reasons)}");
+
+        if (result.RequiresCancelOpenOrders)
+        {
+            foreach (var order in Transactions.GetOpenOrders())
+            {
+                Transactions.CancelOrder(
+                    order.Id,
+                    "GE360 startup recovery cancel");
+            }
+
+            return false;
+        }
+
+        foreach (var symbol in result.SymbolsToFlatten)
+        {
+            var security = Securities.Values.FirstOrDefault(candidate =>
+                string.Equals(
+                    candidate.Symbol.Value,
+                    symbol,
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (security is null || security.Price <= 0m)
+            {
+                _forwardPaperRecorder?.RecordStructuralFailure(
+                    $"recovery-unable-to-price-position:{symbol}");
+
+                Debug(
+                    $"GE360 RECOVERY cannot reduce {symbol}: active security/price unavailable.");
+                continue;
+            }
+
+            var recoveryMarket =
+                string.Equals(
+                    symbol,
+                    currentMarket.Symbol,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? currentMarket
+                    : new MarketSnapshot(
+                        symbol,
+                        UtcTime,
+                        security.Price,
+                        security.BidPrice > 0m
+                            ? security.BidPrice
+                            : security.Price,
+                        security.AskPrice > 0m
+                            ? security.AskPrice
+                            : security.Price,
+                        security.Volume,
+                        null);
+
+            var recoveryPortfolio =
+                BuildPortfolioSnapshot(recoveryMarket);
+
+            var flattenSignal = SignalIntent.Create(
+                "startup-reconciliation",
+                symbol,
+                SignalDirection.Flat,
+                UtcTime,
+                1m,
+                recoveryMarket.LastPrice,
+                null,
+                null,
+                "startup-reconciliation-flat");
+
+            ProcessSignal(
+                flattenSignal,
+                recoveryMarket,
+                recoveryPortfolio);
+        }
+
+        // Even a successful synchronization consumes this bar. The strategy
+        // cannot open new risk on the same time step as startup reconciliation.
+        return false;
     }
 
     private void ProcessSignal(
@@ -254,6 +435,7 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
         else
         {
             _positionProtection.RegisterEntry(approval.Order);
+            _recoveryCoordinator?.RegisterEntry(approval.Order);
             Debug($"GE360 ENTRY submitted {signal.Symbol} qty={approval.Order.Quantity:F4} order={execution.LeanOrderId}");
         }
     }
@@ -269,7 +451,8 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
             "MARKET_CLOSED" or
             "NO_POSITION_TO_REDUCE";
 
-    private PortfolioSnapshot BuildPortfolioSnapshot(MarketSnapshot market)
+    private PortfolioSnapshot BuildPortfolioSnapshot(
+        MarketSnapshot market)
     {
         var equity = Portfolio.TotalPortfolioValue;
 
@@ -279,27 +462,57 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
             _dayStartEquity = equity;
         }
 
-        _peakEquity = Math.Max(_peakEquity, equity);
+        _peakEquity = Math.Max(
+            _peakEquity,
+            equity);
 
-        var positions = new Dictionary<string, PositionSnapshot>();
-        var holdings = Securities[_symbol].Holdings;
+        var positions = new Dictionary<string, PositionSnapshot>(
+            StringComparer.OrdinalIgnoreCase);
 
-        if (holdings.Quantity != 0m)
+        foreach (var security in Securities.Values)
         {
-            positions[AssetTicker] = new PositionSnapshot(
-                AssetTicker,
-                holdings.Quantity,
-                holdings.AveragePrice,
-                market.LastPrice);
+            var holdings = security.Holdings;
+
+            if (holdings.Quantity == 0m)
+            {
+                continue;
+            }
+
+            var marketPrice =
+                string.Equals(
+                    security.Symbol.Value,
+                    market.Symbol,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? market.LastPrice
+                    : security.Price > 0m
+                        ? security.Price
+                        : holdings.AveragePrice;
+
+            positions[security.Symbol.Value] =
+                new PositionSnapshot(
+                    security.Symbol.Value,
+                    holdings.Quantity,
+                    holdings.AveragePrice,
+                    marketPrice);
         }
+
+        var recoveryReducing =
+            _recoveryCoordinator is not null &&
+            _recoveryCoordinator.TradingState ==
+                TradingState.Reducing;
+
+        var tradingState = recoveryReducing
+            ? TradingState.Reducing
+            : _protection.IsHalted
+                ? TradingState.Halted
+                : TradingState.PaperOnly;
 
         return new PortfolioSnapshot(
             UtcTime,
-            _protection.IsHalted ? TradingState.Halted : TradingState.PaperOnly,
+            tradingState,
             equity,
             _peakEquity,
             _dayStartEquity,
             Portfolio.Cash,
             positions);
-    }
-}
+    }}

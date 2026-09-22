@@ -2,11 +2,11 @@
 
 The LEAN upstream core stays authoritative. GE360 features live in separate projects and adapters.
 
-## Current phase
+## Current engineering phase
 
-**Phase 7 — Research and validation (IN PROGRESS / validation gate not yet passed).**
+**Phase 8 — Recovery/reconciliation (IN PROGRESS).**
 
-Phases 1–6 are implemented. Do not start phase 8 until the phase-7 validation gate below is satisfied.
+Phase 7 validation remains open: adequate continuous history and 20 qualifying forward-paper sessions are still required before any real-broker live activation. Phase-8 engineering was started by explicit operator instruction; this does not bypass the phase-7 live-activation gate.
 
 ## Non-negotiable architecture
 
@@ -138,10 +138,18 @@ The forward-paper recorder derives observations from LEAN order-fill events and 
 
 See `docs/GE360_RESEARCH_DATA.md` and `docs/GE360_FORWARD_PAPER.md`.
 
-8. **Recovery/reconciliation — NOT STARTED**
-   - compare local positions/orders with broker state at startup.
-   - block new entries on mismatch.
-   - allow risk-reducing actions.
+8. **Recovery/reconciliation — IN PROGRESS**
+   - [x] persistent atomic recovery checkpoint.
+   - [x] persist expected positions, open orders and stop/target metadata.
+   - [x] compare checkpoint against LEAN broker-synchronized holdings/orders at startup.
+   - [x] any startup open order forces fail-closed reducing mode and cancellation.
+   - [x] quantity mismatch or missing/stale protection metadata forces reducing mode.
+   - [x] matching recent protected position can restore the software protection monitor.
+   - [x] broker already flat after mismatch performs a one-cycle baseline reset before entries resume.
+   - [x] new-risk signals are blocked through existing `TradingState.Reducing` risk logic.
+   - [x] reconciliation exits use the normal `SignalIntent Flat -> Protection -> Risk -> ExecutionGuard -> LEAN` path.
+   - [x] recovery checkpoint persistence failure blocks new risk.
+   - [ ] pass GE360 CI + LEAN smoke with the integrated recovery layer.
 
 9. **Observability — NOT STARTED**
    - journal every signal, rejection, sizing decision and order.
@@ -158,7 +166,7 @@ Phase 7 is complete only when all of the following are true:
 5. the authoritative forward-paper store contains at least 20 qualifying sessions with zero structural failures and zero real-broker submission attempts;
 6. real-broker live submission remains disabled during validation.
 
-Passing this gate does **not** imply future profitability. It only permits engineering work to proceed to phase 8.
+Passing this gate does **not** imply future profitability. Phase-8 engineering may exist, but the gate is still required before any real-broker live activation.
 
 ## Safety invariant
 

@@ -13,6 +13,7 @@ ALGO_DIR="$ROOT/GE360.Trading.LeanAlgorithm/bin/Release/net10.0"
 for dll in \
   GE360.Trading.Core.dll \
   GE360.Trading.Validation.dll \
+  GE360.Trading.Recovery.dll \
   GE360.Trading.LeanAdapter.dll \
   GE360.Trading.LeanAlgorithm.dll
 do
