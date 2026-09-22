@@ -9,6 +9,7 @@ on:
       - "GE360.Trading.LeanAdapter/**"
       - "GE360.Trading.LeanAlgorithm/**"
       - "GE360.Trading.AlpacaPluginHost/**"
+      - "GE360.Trading.PluginProbe/**"
       - "GE360.Trading.Research/**"
       - "GE360.Trading.Tests/**"
       - "scripts/ge360-smoke-backtest.sh"
@@ -22,6 +23,7 @@ on:
       - "GE360.Trading.LeanAdapter/**"
       - "GE360.Trading.LeanAlgorithm/**"
       - "GE360.Trading.AlpacaPluginHost/**"
+      - "GE360.Trading.PluginProbe/**"
       - "GE360.Trading.Research/**"
       - "GE360.Trading.Tests/**"
       - "scripts/ge360-smoke-backtest.sh"
@@ -80,9 +82,19 @@ jobs:
         run: dotnet build GE360.Trading.LeanAlgorithm/GE360.Trading.LeanAlgorithm.csproj --configuration Release
       - name: Stage official Alpaca plugin
         run: bash scripts/ge360-stage-alpaca-plugin.sh
+      - name: Build plugin probe
+        run: dotnet build GE360.Trading.PluginProbe/GE360.Trading.PluginProbe.csproj --configuration Release
+      - name: Verify Alpaca plugin discovery through LEAN Composer
+        run: >
+          dotnet run
+          --project GE360.Trading.PluginProbe/GE360.Trading.PluginProbe.csproj
+          --configuration Release
+          --no-build
+          --
+          "${{ github.workspace }}/ge360-plugins/alpaca"
       - name: Validate live-paper launcher shell
         run: bash -n scripts/ge360-live-paper-alpaca.sh
       - name: Run LEAN smoke with Alpaca plugin loaded
         env:
-          GE360_PLUGIN_DIR: ${${ github.workspace }}/ge360-plugins/alpaca
+          GE360_PLUGIN_DIR: "${{ github.workspace }}/ge360-plugins/alpaca"
         run: bash scripts/ge360-smoke-backtest.sh

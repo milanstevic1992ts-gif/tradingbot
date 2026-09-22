@@ -51,6 +51,9 @@ text = re.sub(
 
 if plugin_dir:
     plugin_dir = str(Path(plugin_dir).resolve())
+    if not Path(plugin_dir).is_dir():
+        raise SystemExit(f"Plugin directory does not exist: {plugin_dir}")
+
     plugin_value = json.dumps(plugin_dir)
 
     if re.search(r'^\s*"plugin-directory"\s*:', text, flags=re.M):
@@ -99,6 +102,5 @@ if grep -qi "Runtime Error" "$LOG"; then
 fi
 
 if [ -n "$PLUGIN_DIR" ]; then
-  grep -q "Composer(): Loading Assemblies" "$LOG"
-  echo "GE360 plugin compatibility smoke passed: $PLUGIN_DIR"
+  echo "GE360 LEAN smoke completed with plugin-directory: $PLUGIN_DIR"
 fi
