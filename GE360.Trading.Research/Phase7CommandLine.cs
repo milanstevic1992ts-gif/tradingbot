@@ -24,6 +24,12 @@ public static class Phase7CommandLine
             return true;
         }
 
+        if (args.Contains("--phase7-status", StringComparer.OrdinalIgnoreCase))
+        {
+            exitCode = ShowPhase7Status(args, repositoryRoot, output);
+            return true;
+        }
+
         if (args.Contains("--phase7-gate", StringComparer.OrdinalIgnoreCase))
         {
             exitCode = EvaluateGate(args, repositoryRoot, output);
@@ -121,6 +127,71 @@ public static class Phase7CommandLine
             }
 
             File.WriteAllText(outputPath, json);
+        }
+
+        Console.WriteLine(json);
+        return 0;
+    }
+
+    private static int ShowPhase7Status(
+        string[] args,
+        string repositoryRoot,
+        string? output)
+    {
+        var researchPath = ResolvePath(
+            repositoryRoot,
+            GetRequiredOption(args, "--research-report"));
+
+        var paperStorePath = ResolvePath(
+            repositoryRoot,
+            GetRequiredOption(args, "--paper-store"));
+
+        var liveSubmissionEnabled = ParseBool(
+            GetOption(args, "--live-submission-enabled") ?? "false",
+            "--live-submission-enabled");
+
+        ExternalPortfolioResearchReport? research = null;
+
+        if (File.Exists(researchPath))
+        {
+            research = JsonSerializer.Deserialize<ExternalPortfolioResearchReport>(
+                File.ReadAllText(researchPath),
+                JsonOptions())
+                ?? throw new InvalidDataException(
+                    "Unable to deserialize external portfolio research report.");
+        }
+
+        var store = ForwardPaperObservationStore.Load(
+            paperStorePath);
+
+        var summary = store.Summarize();
+
+        var progress = Phase7ProgressReport.Build(
+            research,
+            summary,
+            liveSubmissionEnabled);
+
+        var json = JsonSerializer.Serialize(
+            progress,
+            JsonOptions());
+
+        if (!string.IsNullOrWhiteSpace(output))
+        {
+            var outputPath = ResolvePath(
+                repositoryRoot,
+                output);
+
+            var directory =
+                Path.GetDirectoryName(outputPath);
+
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(
+                outputPath,
+                json);
         }
 
         Console.WriteLine(json);

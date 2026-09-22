@@ -44,7 +44,7 @@ public static class Program
 
         Console.Error.WriteLine(
             "Usage: dotnet run --project GE360.Trading.Research -- " +
-            "(--bundled-spy-smoke | --bundled-equity-batch-smoke | --csv-dataset PATH | --alpaca-download | --paper-summary) " +
+            "(--bundled-spy-smoke | --bundled-equity-batch-smoke | --csv-dataset PATH | --alpaca-download | --paper-summary | --phase7-status | --phase7-gate) " +
             "[--symbols SPY,AAPL --start YYYY-MM-DD --end YYYY-MM-DD --feed iex --output-data PATH] " +
             "[--output report.json]");
         return 2;

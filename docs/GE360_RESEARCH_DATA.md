@@ -91,3 +91,20 @@ Important:
 - requests are paced conservatively between pages;
 - the default feed is `iex`; use another Alpaca feed only if the account is entitled to it;
 - downloaded data is still subject to the same dataset-quality gate and does not bypass OOS/walk-forward/forward-paper requirements.
+
+
+## GE360 Phase-7 automated validator
+
+For the complete historical + OOS + walk-forward + paper-gate workflow, use:
+
+```bash
+bash scripts/ge360-phase7-validate.sh
+```
+
+Progress can be inspected separately with:
+
+```bash
+bash scripts/ge360-phase7-status.sh
+```
+
+See `docs/GE360_PHASE7_VALIDATION.md` for the authoritative workflow and Debian timer.

@@ -2,11 +2,11 @@
 
 The LEAN upstream core stays authoritative. GE360 features live in separate projects and adapters.
 
-## Current engineering phase
+## Current validation focus
 
-**Phase 9 — Observability (COMPLETE).**
+**Phase 7 — Research and validation (IN PROGRESS).**
 
-Phase 7 validation remains open: adequate continuous history and 20 qualifying forward-paper sessions are still required before any real-broker live activation. Phases 8–9 engineering do not bypass the phase-7 live-activation gate.
+Phases 8–9 engineering are complete, but they do not bypass phase 7. Real-broker activation remains blocked until the authoritative phase-7 gate passes.
 
 ## Non-negotiable architecture
 
@@ -87,11 +87,16 @@ A strategy must never own a brokerage reference or submit an order directly.
    - [x] runtime policy separates LEAN `PaperBrokerage` from every real brokerage.
    - [x] official Alpaca plugin prepared as a data-only feed for local LEAN paper observation.
    - [x] local Debian launcher prepared: Alpaca live data -> GE360 -> LEAN PaperBrokerage.
+   - [x] machine-readable phase-7 progress report that tolerates missing historical data without inventing results.
+   - [x] one-command historical download -> quality -> IS/OOS -> walk-forward -> gate pipeline.
+   - [x] nightly Debian phase-7 validation service/timer with weekly historical refresh by default.
    - [ ] load an adequate continuous minute-history dataset.
    - [ ] run OOS + walk-forward on that adequate dataset.
    - [ ] reach the configurable count gate on an adequate dataset (default: 20 sessions AND 30 closed trades).
    - [ ] supply valid data credentials and start the actual forward-paper observation.
    - [ ] complete 20 qualifying forward-paper sessions.
+
+See `docs/GE360_PHASE7_VALIDATION.md` for the automated validation pipeline and authoritative blockers.
 
 ### Current bundled-data evidence
 

@@ -19,6 +19,8 @@ on:
       - "scripts/ge360-live-paper-alpaca.sh"
       - "scripts/ge360-install-paper-service.sh"
       - "scripts/ge360-paper-status.sh"
+      - "scripts/ge360-phase7-validate.sh"
+      - "scripts/ge360-phase7-status.sh"
       - "dashboard/ge360-observability/**"
       - "scripts/ge360-observability-status.sh"
       - "scripts/ge360-observability-dashboard.py"
@@ -41,6 +43,8 @@ on:
       - "scripts/ge360-live-paper-alpaca.sh"
       - "scripts/ge360-install-paper-service.sh"
       - "scripts/ge360-paper-status.sh"
+      - "scripts/ge360-phase7-validate.sh"
+      - "scripts/ge360-phase7-status.sh"
       - "dashboard/ge360-observability/**"
       - "scripts/ge360-observability-status.sh"
       - "scripts/ge360-observability-dashboard.py"
@@ -117,6 +121,8 @@ jobs:
           bash -n scripts/ge360-live-paper-alpaca.sh
           bash -n scripts/ge360-install-paper-service.sh
           bash -n scripts/ge360-paper-status.sh
+          bash -n scripts/ge360-phase7-validate.sh
+          bash -n scripts/ge360-phase7-status.sh
           bash -n scripts/ge360-observability-status.sh
           python3 -m py_compile scripts/ge360-observability-dashboard.py
       - name: Verify empty forward-paper summary command
@@ -128,6 +134,26 @@ jobs:
           --
           --paper-summary
           --paper-store artifacts/ci-forward-paper.json
+      - name: Verify phase-7 blocked status without credentials
+        env:
+          GE360_PHASE7_DIR: "${{ github.workspace }}/artifacts/ci-phase7"
+          GE360_FORWARD_PAPER_STORE: "${{ github.workspace }}/artifacts/ci-forward-paper.json"
+        run: |
+          unset APCA_API_KEY_ID APCA_API_SECRET_KEY
+          set +e
+          bash scripts/ge360-phase7-validate.sh
+          code=$?
+          set -e
+          test "$code" -eq 3
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("artifacts/ci-phase7/progress.json")
+          d = json.loads(p.read_text())
+          assert d["Ready"] is False
+          assert "RESEARCH_REPORT_MISSING" in d["Blockers"]
+          assert "FORWARD_PAPER_OBSERVATION_INCOMPLETE" in d["Blockers"]
+          PY
       - name: Run LEAN smoke with Alpaca plugin loaded
         env:
           GE360_PLUGIN_DIR: "${{ github.workspace }}/ge360-plugins/alpaca"

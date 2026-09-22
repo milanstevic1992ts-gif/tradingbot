@@ -38,6 +38,49 @@ public sealed class Phase7GateTests
     }
 
     [Test]
+    public void Phase7ProgressReportsMissingHistoricalReportWithoutThrowing()
+    {
+        var paper = ForwardPaperSummary.Assess(
+            Array.Empty<ForwardPaperSession>());
+
+        var progress = Phase7ProgressReport.Build(
+            research: null,
+            paper,
+            liveSubmissionEnabled: false);
+
+        Assert.That(progress.Ready, Is.False);
+        Assert.That(progress.HistoricalReportPresent, Is.False);
+        Assert.That(
+            progress.Blockers,
+            Does.Contain("RESEARCH_REPORT_MISSING"));
+        Assert.That(
+            progress.Blockers,
+            Does.Contain("FORWARD_PAPER_OBSERVATION_INCOMPLETE"));
+    }
+
+    [Test]
+    public void Phase7ProgressCanBecomeReadyWhenAllRequirementsPass()
+    {
+        var paper = ForwardPaperSummary.Assess(
+            BusinessDays(new DateTime(2026, 6, 1), 20)
+                .Select(QualifyingSession)
+                .ToArray());
+
+        var progress = Phase7ProgressReport.Build(
+            AdequateResearchReport(),
+            paper,
+            liveSubmissionEnabled: false);
+
+        Assert.That(progress.Ready, Is.True);
+        Assert.That(progress.DatasetAdequate, Is.True);
+        Assert.That(progress.HistoricalCountGateReached, Is.True);
+        Assert.That(progress.OutOfSampleExecuted, Is.True);
+        Assert.That(progress.WalkForwardExecuted, Is.True);
+        Assert.That(progress.QualifyingForwardPaperSessions, Is.EqualTo(20));
+        Assert.That(progress.Blockers, Is.Empty);
+    }
+
+    [Test]
     public void Phase7GateBlocksIncompleteForwardPaper()
     {
         var research = AdequateResearchReport();

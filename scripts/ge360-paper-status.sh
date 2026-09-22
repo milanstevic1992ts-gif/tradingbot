@@ -23,6 +23,9 @@ dotnet run \
   --paper-store "$STORE"
 
 echo
+bash "$ROOT/scripts/ge360-phase7-status.sh"
+
+echo
 bash "$ROOT/scripts/ge360-observability-status.sh"
 
 echo

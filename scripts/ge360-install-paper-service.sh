@@ -4,8 +4,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVICE_NAME="ge360-trading-paper"
 DASHBOARD_SERVICE_NAME="ge360-trading-dashboard"
+PHASE7_SERVICE_NAME="ge360-phase7-validation"
+PHASE7_TIMER_NAME="ge360-phase7-validation.timer"
 UNIT_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 DASHBOARD_UNIT_PATH="/etc/systemd/system/${DASHBOARD_SERVICE_NAME}.service"
+PHASE7_UNIT_PATH="/etc/systemd/system/${PHASE7_SERVICE_NAME}.service"
+PHASE7_TIMER_PATH="/etc/systemd/system/${PHASE7_TIMER_NAME}"
 ENV_DIR="/etc/ge360"
 ENV_PATH="${ENV_DIR}/trading-paper.env"
 
@@ -25,6 +29,7 @@ fi
 install -d -m 0750 "$ENV_DIR"
 install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$ROOT/ge360-state"
 install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$ROOT/ge360-state/observability"
+install -d -m 0750 -o "$SERVICE_USER" -g "$SERVICE_USER" "$ROOT/ge360-state/phase7"
 
 if [ ! -f "$ENV_PATH" ]; then
   cat >"$ENV_PATH" <<EOF
@@ -48,6 +53,12 @@ ensure_env_default "GE360_RECOVERY_CHECKPOINT" "$ROOT/ge360-state/recovery-check
 ensure_env_default "GE360_OBSERVABILITY_DIR" "$ROOT/ge360-state/observability"
 ensure_env_default "GE360_OBSERVABILITY_BIND" "127.0.0.1"
 ensure_env_default "GE360_OBSERVABILITY_PORT" "9891"
+ensure_env_default "GE360_PHASE7_DIR" "$ROOT/ge360-state/phase7"
+ensure_env_default "GE360_PHASE7_SYMBOLS" "SPY,QQQ,AAPL,MSFT,NVDA"
+ensure_env_default "GE360_PHASE7_LOOKBACK_DAYS" "120"
+ensure_env_default "GE360_PHASE7_REFRESH_HOURS" "168"
+ensure_env_default "GE360_PHASE7_FEED" "iex"
+ensure_env_default "GE360_PHASE7_ADJUSTMENT" "all"
 
 chown root:root "$ENV_PATH"
 chmod 0600 "$ENV_PATH"
@@ -113,6 +124,44 @@ EOF
   systemctl enable "$DASHBOARD_SERVICE_NAME.service" >/dev/null
 fi
 
+cat >"$PHASE7_UNIT_PATH" <<EOF
+[Unit]
+Description=GE360 Phase 7 Historical and Paper Validation
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=$ROOT/scripts/ge360-phase7-validate.sh
+
+[Service]
+Type=oneshot
+User=$SERVICE_USER
+WorkingDirectory=$ROOT
+EnvironmentFile=$ENV_PATH
+ExecStart=/usr/bin/env bash $ROOT/scripts/ge360-phase7-validate.sh
+SuccessExitStatus=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+ReadWritePaths=$ROOT
+
+EOF
+
+cat >"$PHASE7_TIMER_PATH" <<EOF
+[Unit]
+Description=Run GE360 Phase 7 validation nightly
+
+[Timer]
+OnCalendar=*-*-* 23:30:00
+Persistent=true
+Unit=$PHASE7_SERVICE_NAME.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+chmod 0644 "$PHASE7_UNIT_PATH" "$PHASE7_TIMER_PATH"
+systemctl enable "$PHASE7_TIMER_NAME" >/dev/null
+
 systemctl daemon-reload
 
 api_key="$(sed -n 's/^APCA_API_KEY_ID=//p' "$ENV_PATH" | tail -n1)"
@@ -133,7 +182,10 @@ fi
 
 if [ -n "$api_key" ] && [ -n "$api_secret" ]; then
   systemctl restart "$SERVICE_NAME.service"
+  systemctl start "$PHASE7_TIMER_NAME"
+  systemctl start "$PHASE7_SERVICE_NAME.service" || true
   echo "GE360 paper service started."
+  echo "GE360 phase-7 validation timer started."
 else
   echo "Credentials are empty; paper service intentionally not started."
   echo "Edit $ENV_PATH, then run:"
