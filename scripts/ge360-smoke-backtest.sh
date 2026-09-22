@@ -44,4 +44,29 @@ path.write_text(text)
 PY
 
 cd "$LAUNCH_DIR"
+rm -f Ge360OpeningRangePaperAlgorithm-log.txt
 timeout 180s dotnet QuantConnect.Lean.Launcher.dll
+
+LOG="$LAUNCH_DIR/Ge360OpeningRangePaperAlgorithm-log.txt"
+
+test -f "$LOG"
+grep -q "GE360 ENTRY submitted" "$LOG"
+grep -q "GE360 EXIT submitted" "$LOG"
+
+if grep -q "GE360 EXEC REJECT" "$LOG"; then
+  echo "GE360 smoke failed: execution rejection detected"
+  grep "GE360 EXEC REJECT" "$LOG"
+  exit 1
+fi
+
+if grep -q "PROTECTION_HALTED" "$LOG"; then
+  echo "GE360 smoke failed: protection halt detected"
+  grep "PROTECTION_HALTED" "$LOG"
+  exit 1
+fi
+
+if grep -qi "Runtime Error" "$LOG"; then
+  echo "GE360 smoke failed: runtime error detected"
+  grep -i "Runtime Error" "$LOG"
+  exit 1
+fi

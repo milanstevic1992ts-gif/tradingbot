@@ -160,6 +160,15 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
         }
     }
 
+    public override void OnEndOfAlgorithm()
+    {
+        if (Portfolio.Invested)
+        {
+            throw new InvalidOperationException(
+                "GE360 intraday invariant violated: algorithm ended with an open position.");
+        }
+    }
+
     private void ProcessSignal(
         SignalIntent signal,
         MarketSnapshot market,
@@ -187,7 +196,7 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
 
         if (approval.Order.IsRiskReducing)
         {
-            Debug($"GE360 EXIT submitted {signal.Symbol} order={execution.LeanOrderId}");
+            Debug($"GE360 EXIT submitted {signal.Symbol} order={execution.LeanOrderId} reason={signal.Reason}");
         }
         else
         {
