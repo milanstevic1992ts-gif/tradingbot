@@ -14,7 +14,13 @@ public sealed record StrategyContext(
 
     public bool TryGetFeatures(string symbol, out StrategyFeatures features)
     {
-        features = default!;
-        return Features is not null && Features.TryGetValue(symbol, out features);
+        if (Features is not null && Features.TryGetValue(symbol, out var found))
+        {
+            features = found;
+            return true;
+        }
+
+        features = null!;
+        return false;
     }
 }
