@@ -1,4 +1,5 @@
 using System.Text.Json;
+using GE360.Trading.Features;
 
 namespace GE360.Trading.Research;
 
@@ -6,15 +7,34 @@ public static class Program
 {
     public static int Main(string[] args)
     {
-        if (!args.Contains("--bundled-spy-smoke", StringComparer.OrdinalIgnoreCase))
+        var root = FindRepositoryRoot();
+        var output = GetOption(args, "--output");
+
+        if (args.Contains("--bundled-spy-smoke", StringComparer.OrdinalIgnoreCase))
         {
-            Console.Error.WriteLine(
-                "Usage: dotnet run --project GE360.Trading.Research -- --bundled-spy-smoke [--output path]");
-            return 2;
+            return RunBundledSpySmoke(root, output);
         }
 
-        var root = FindRepositoryRoot();
-        var dataDirectory = Path.Combine(root, "Data", "equity", "usa", "minute", "spy");
+        if (args.Contains("--bundled-equity-batch-smoke", StringComparer.OrdinalIgnoreCase))
+        {
+            return RunBundledEquityBatch(root, output);
+        }
+
+        Console.Error.WriteLine(
+            "Usage: dotnet run --project GE360.Trading.Research -- " +
+            "(--bundled-spy-smoke | --bundled-equity-batch-smoke) [--output path]");
+        return 2;
+    }
+
+    private static int RunBundledSpySmoke(string root, string? output)
+    {
+        var dataDirectory = Path.Combine(
+            root,
+            "Data",
+            "equity",
+            "usa",
+            "minute",
+            "spy");
 
         var bars = LeanMinuteTradeDataLoader.LoadTradeDirectory(
             dataDirectory,
@@ -54,11 +74,101 @@ public static class Program
             walkForward,
             "Bundled LEAN data is a smoke dataset only. It is too small for statistical validation or profitability claims.");
 
+        WriteReport(root, output, report);
+        return 0;
+    }
+
+    private static int RunBundledEquityBatch(string root, string? output)
+    {
+        var equityMinuteRoot = Path.Combine(
+            root,
+            "Data",
+            "equity",
+            "usa",
+            "minute");
+
+        var dataset = BundledEquityDataset.Load(equityMinuteRoot);
+
+        if (dataset.CalendarSessions.Count < 2)
+        {
+            throw new InvalidOperationException(
+                "Bundled equity dataset does not contain enough calendar sessions.");
+        }
+
+        var split = ResearchSplitBuilder.Chronological(
+            dataset.CalendarSessions,
+            0.70m);
+
+        var runner = new PortfolioResearchRunner();
+        var costs = ResearchCostModel.DeterministicSmokeDefaults;
+
+        var full = runner.Run(
+            dataset.Bars,
+            costs: costs,
+            datasetAdequate: false);
+
+        var inSampleDates = split.InSampleSessions.ToHashSet();
+        var outOfSampleDates = split.OutOfSampleSessions.ToHashSet();
+
+        var inSample = runner.Run(
+            dataset.Bars.Where(x =>
+                inSampleDates.Contains(x.ExchangeLocalTime.Date)),
+            costs: costs,
+            datasetAdequate: false);
+
+        var outOfSample = runner.Run(
+            dataset.Bars.Where(x =>
+                outOfSampleDates.Contains(x.ExchangeLocalTime.Date)),
+            costs: costs,
+            datasetAdequate: false);
+
+        var trainingSessions = Math.Min(
+            8,
+            Math.Max(1, dataset.CalendarSessions.Count - 2));
+
+        var walkForwardPlan = WalkForwardPlan.Build(
+            dataset.CalendarSessions,
+            trainingSessions,
+            testSessions: 2,
+            stepSessions: 2);
+
+        var walkForward = WalkForwardEvaluator.Evaluate(
+            runner,
+            dataset.Bars,
+            walkForwardPlan,
+            costs: costs);
+
+        var report = new BundledPortfolioResearchReport(
+            DateTime.UtcNow,
+            "LEAN bundled US equity minute archives (fragmented engineering dataset)",
+            dataset.TradeArchiveCount,
+            dataset.Symbols.Count,
+            dataset.CalendarSessions.Count,
+            dataset.SymbolSessionCount,
+            dataset.Symbols,
+            dataset.CalendarSessions,
+            full,
+            inSample,
+            outOfSample,
+            split,
+            walkForward,
+            "This bundled dataset is fragmented across symbols and years. " +
+            "It is useful for engineering stress tests only and is explicitly " +
+            "ineligible to complete phase 7.");
+
+        WriteReport(root, output, report);
+        return 0;
+    }
+
+    private static void WriteReport<T>(
+        string root,
+        string? output,
+        T report)
+    {
         var json = JsonSerializer.Serialize(
             report,
             new JsonSerializerOptions { WriteIndented = true });
 
-        var output = GetOption(args, "--output");
         if (output is not null)
         {
             var outputPath = Path.GetFullPath(output, root);
@@ -68,7 +178,6 @@ public static class Program
         }
 
         Console.WriteLine(json);
-        return 0;
     }
 
     private static string FindRepositoryRoot()
@@ -86,14 +195,18 @@ public static class Program
             directory = directory.Parent;
         }
 
-        throw new DirectoryNotFoundException("Unable to locate tradingbot repository root.");
+        throw new DirectoryNotFoundException(
+            "Unable to locate tradingbot repository root.");
     }
 
     private static string? GetOption(string[] args, string name)
     {
         for (var index = 0; index < args.Length - 1; index++)
         {
-            if (string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(
+                    args[index],
+                    name,
+                    StringComparison.OrdinalIgnoreCase))
             {
                 return args[index + 1];
             }

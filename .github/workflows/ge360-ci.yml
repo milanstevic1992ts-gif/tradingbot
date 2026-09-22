@@ -38,7 +38,7 @@ jobs:
         run: dotnet build GE360.Trading.Research/GE360.Trading.Research.csproj --configuration Release
       - name: Run GE360 tests
         run: dotnet test GE360.Trading.Tests/GE360.Trading.Tests.csproj --configuration Release
-      - name: Run bundled historical research smoke
+      - name: Run bundled SPY research smoke
         run: >
           dotnet run
           --project GE360.Trading.Research/GE360.Trading.Research.csproj
@@ -47,11 +47,22 @@ jobs:
           --
           --bundled-spy-smoke
           --output artifacts/ge360-research-smoke.json
+      - name: Run bundled cross-symbol engineering batch
+        run: >
+          dotnet run
+          --project GE360.Trading.Research/GE360.Trading.Research.csproj
+          --configuration Release
+          --no-build
+          --
+          --bundled-equity-batch-smoke
+          --output artifacts/ge360-research-batch.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ge360-research-smoke
-          path: artifacts/ge360-research-smoke.json
+          name: ge360-research-reports
+          path: |
+            artifacts/ge360-research-smoke.json
+            artifacts/ge360-research-batch.json
           if-no-files-found: warn
       - name: Build LEAN adapter
         run: dotnet build GE360.Trading.LeanAdapter/GE360.Trading.LeanAdapter.csproj --configuration Release

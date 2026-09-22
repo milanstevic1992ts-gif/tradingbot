@@ -105,6 +105,54 @@ public sealed class ResearchInfrastructureTests
     }
 
     [Test]
+    public void BundledEquityDatasetMapsAllAvailableArchives()
+    {
+        var root = FindRepositoryRoot();
+        var dataset = BundledEquityDataset.Load(Path.Combine(
+            root,
+            "Data",
+            "equity",
+            "usa",
+            "minute"));
+
+        Assert.That(dataset.TradeArchiveCount, Is.GreaterThanOrEqualTo(41));
+        Assert.That(dataset.Symbols.Count, Is.GreaterThanOrEqualTo(10));
+        Assert.That(dataset.CalendarSessions.Count, Is.GreaterThanOrEqualTo(20));
+        Assert.That(dataset.SymbolSessionCount, Is.GreaterThanOrEqualTo(41));
+    }
+
+    [Test]
+    public void CountGateCannotValidateFragmentedDataset()
+    {
+        var validation = ResearchValidation.Assess(
+            sessionCount: 20,
+            tradeCount: 30,
+            datasetAdequate: false);
+
+        Assert.That(
+            validation.Status,
+            Is.EqualTo(ResearchValidationStatus.EngineeringSampleOnly));
+        Assert.That(validation.DatasetAdequate, Is.False);
+    }
+
+    [Test]
+    public void PortfolioRunnerSharesRiskAcrossSymbolsAndFinishesFlat()
+    {
+        var bars = BuildTwoSymbolPortfolioSession();
+        var runner = new PortfolioResearchRunner();
+
+        var result = runner.Run(
+            bars,
+            costs: new ResearchCostModel(0m, 0m),
+            datasetAdequate: false);
+
+        Assert.That(result.SymbolCount, Is.EqualTo(2));
+        Assert.That(result.SymbolSessionCount, Is.EqualTo(2));
+        Assert.That(result.Trades.Count, Is.EqualTo(2));
+        Assert.That(result.Trades.Select(x => x.Symbol).Distinct(), Has.Count.EqualTo(2));
+    }
+
+    [Test]
     public void SmallBundledDatasetIsClassifiedAsSmokeOnly()
     {
         var validation = ResearchValidation.Assess(
@@ -197,7 +245,75 @@ public sealed class ResearchInfrastructureTests
         return bars;
     }
 
+    private static IReadOnlyList<IntradayBar> BuildTwoSymbolPortfolioSession()
+    {
+        var session = new DateTime(2026, 3, 4);
+        var bars = new List<IntradayBar>();
+
+        foreach (var symbol in new[] { "SPY", "AAPL" })
+        {
+            for (var minute = 0; minute < 15; minute++)
+            {
+                bars.Add(Bar(
+                    symbol,
+                    session,
+                    9,
+                    30 + minute,
+                    100m,
+                    101m,
+                    99.5m,
+                    100m,
+                    1_000m));
+            }
+
+            bars.Add(Bar(
+                symbol,
+                session,
+                9,
+                45,
+                101.5m,
+                102.2m,
+                101.4m,
+                102m,
+                20_000m));
+
+            bars.Add(Bar(
+                symbol,
+                session,
+                9,
+                46,
+                102m,
+                108m,
+                101.8m,
+                107m,
+                20_000m));
+        }
+
+        return bars;
+    }
+
     private static IntradayBar Bar(
+        DateTime session,
+        int hour,
+        int minute,
+        decimal open,
+        decimal high,
+        decimal low,
+        decimal close,
+        decimal volume)
+        => Bar(
+            "SPY",
+            session,
+            hour,
+            minute,
+            open,
+            high,
+            low,
+            close,
+            volume);
+
+    private static IntradayBar Bar(
+        string symbol,
         DateTime session,
         int hour,
         int minute,
@@ -216,7 +332,7 @@ public sealed class ResearchInfrastructureTests
             DateTimeKind.Utc);
 
         return new IntradayBar(
-            "SPY",
+            symbol,
             utc,
             local,
             open,

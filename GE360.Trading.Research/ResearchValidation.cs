@@ -3,7 +3,8 @@ namespace GE360.Trading.Research;
 public enum ResearchValidationStatus
 {
     SmokeOnly = 0,
-    MinimumSampleReached = 1
+    EngineeringSampleOnly = 1,
+    MinimumSampleReached = 2
 }
 
 public sealed record ResearchValidation(
@@ -12,26 +13,49 @@ public sealed record ResearchValidation(
     int TradeCount,
     int MinimumSessions,
     int MinimumTrades,
+    bool DatasetAdequate,
     string Note)
 {
     public static ResearchValidation Assess(
         int sessionCount,
         int tradeCount,
         int minimumSessions = 20,
-        int minimumTrades = 30)
+        int minimumTrades = 30,
+        bool datasetAdequate = true)
     {
-        var sufficient = sessionCount >= minimumSessions && tradeCount >= minimumTrades;
+        var countGate = sessionCount >= minimumSessions && tradeCount >= minimumTrades;
+
+        if (!countGate)
+        {
+            return new ResearchValidation(
+                ResearchValidationStatus.SmokeOnly,
+                sessionCount,
+                tradeCount,
+                minimumSessions,
+                minimumTrades,
+                datasetAdequate,
+                "Smoke-test sample only. Do not interpret these results as statistical validation.");
+        }
+
+        if (!datasetAdequate)
+        {
+            return new ResearchValidation(
+                ResearchValidationStatus.EngineeringSampleOnly,
+                sessionCount,
+                tradeCount,
+                minimumSessions,
+                minimumTrades,
+                false,
+                "Trade/session count gate reached, but dataset quality is insufficient for phase-7 validation.");
+        }
 
         return new ResearchValidation(
-            sufficient
-                ? ResearchValidationStatus.MinimumSampleReached
-                : ResearchValidationStatus.SmokeOnly,
+            ResearchValidationStatus.MinimumSampleReached,
             sessionCount,
             tradeCount,
             minimumSessions,
             minimumTrades,
-            sufficient
-                ? "Minimum engineering sample gate reached; this is not proof of future profitability."
-                : "Smoke-test sample only. Do not interpret these results as statistical validation.");
+            true,
+            "Minimum engineering sample gate reached on an adequate dataset; this is not proof of future profitability.");
     }
 }
