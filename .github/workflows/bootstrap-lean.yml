@@ -1,0 +1,48 @@
+name: Bootstrap LEAN into tradingbot
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-lean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Mirror QuantConnect LEAN into this repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Cloning QuantConnect/Lean as a full mirror..."
+          git clone --mirror https://github.com/QuantConnect/Lean.git lean.git
+          cd lean.git
+
+          TARGET="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git remote add target "${TARGET}"
+
+          echo "Importing LEAN master as tradingbot/main..."
+          git push --force target refs/heads/master:refs/heads/main
+
+          echo "Preserving upstream master as master..."
+          git push --force target refs/heads/master:refs/heads/master
+
+          echo "Importing all other branches..."
+          while IFS= read -r branch; do
+            case "${branch}" in
+              master|main) continue ;;
+            esac
+            git push --force target "refs/heads/${branch}:refs/heads/${branch}"
+          done < <(git for-each-ref --format='%(refname:strip=2)' refs/heads)
+
+          echo "Importing all tags..."
+          git push --force target --tags
+
+          echo "LEAN mirror import completed."
