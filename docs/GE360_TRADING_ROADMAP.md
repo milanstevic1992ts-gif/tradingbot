@@ -4,9 +4,9 @@ The LEAN upstream core stays authoritative. GE360 features live in separate proj
 
 ## Current engineering phase
 
-**Phase 8 — Recovery/reconciliation (COMPLETE).**
+**Phase 9 — Observability (IN PROGRESS).**
 
-Phase 7 validation remains open: adequate continuous history and 20 qualifying forward-paper sessions are still required before any real-broker live activation. Phase-8 engineering was started by explicit operator instruction; this does not bypass the phase-7 live-activation gate.
+Phase 7 validation remains open: adequate continuous history and 20 qualifying forward-paper sessions are still required before any real-broker live activation. Phases 8–9 engineering do not bypass the phase-7 live-activation gate.
 
 ## Non-negotiable architecture
 
@@ -151,9 +151,23 @@ See `docs/GE360_RESEARCH_DATA.md` and `docs/GE360_FORWARD_PAPER.md`.
    - [x] recovery checkpoint persistence failure blocks new risk.
    - [x] GE360 CI + LEAN smoke pass with the integrated recovery layer.
 
-9. **Observability — NOT STARTED**
-   - journal every signal, rejection, sizing decision and order.
-   - dashboard trading state, exposure, daily P&L, drawdown and halt reason.
+9. **Observability — IN PROGRESS**
+   - [x] separate `GE360.Trading.Observability` project; no LEAN-core modifications.
+   - [x] daily append-only JSONL event journal.
+   - [x] journal every strategy signal before approval.
+   - [x] journal risk approval/rejection and approved position size.
+   - [x] journal execution submission/rejection and LEAN order id.
+   - [x] journal LEAN order/fill events, fill price, quantity and fee.
+   - [x] journal recovery state transitions and protection halt.
+   - [x] atomic `runtime-status.json` with trading state, equity, cash, exposure, daily P&L and drawdown.
+   - [x] expose positions, open-order count, halt reason, recovery health and journal health.
+   - [x] maintain bounded `recent-events.json` for monitoring clients.
+   - [x] terminal observability status command.
+   - [x] separate read-only localhost dashboard; no order/control endpoints.
+   - [x] Debian dashboard systemd service and idempotent environment migration.
+   - [ ] pass unit tests + dashboard HTTP checks + full LEAN smoke with real journal events.
+
+See `docs/GE360_OBSERVABILITY.md` for the phase-9 telemetry contract and read-only dashboard boundary.
 
 ## Phase-7 exit gate
 

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GE360 Trading Observability</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    body { margin:0; background:#0d1117; color:#e6edf3; }
+    main { max-width:1180px; margin:auto; padding:24px; }
+    h1 { margin:0 0 6px; font-size:26px; }
+    .sub { color:#8b949e; margin-bottom:20px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+    .card { background:#161b22; border:1px solid #30363d; border-radius:12px; padding:14px; }
+    .label { color:#8b949e; font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+    .value { font-size:22px; font-weight:700; margin-top:7px; overflow-wrap:anywhere; }
+    .ok { color:#3fb950; } .warn { color:#d29922; } .bad { color:#f85149; }
+    section { margin-top:20px; }
+    table { width:100%; border-collapse:collapse; background:#161b22; border:1px solid #30363d; border-radius:12px; overflow:hidden; }
+    th,td { padding:10px; border-bottom:1px solid #30363d; text-align:left; font-size:13px; }
+    th { color:#8b949e; }
+    pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#161b22; border:1px solid #30363d; border-radius:12px; padding:12px; }
+    .event { margin-bottom:8px; padding:9px; border-left:3px solid #30363d; background:#161b22; }
+    .event.Warning { border-color:#d29922; } .event.Error,.event.Critical { border-color:#f85149; }
+    .event small { color:#8b949e; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>GE360 Trading Observability</h1>
+  <div class="sub">Read-only local dashboard · refreshes every 5 seconds</div>
+  <div id="cards" class="grid"></div>
+
+  <section>
+    <h2>Positions</h2>
+    <table>
+      <thead><tr><th>Symbol</th><th>Qty</th><th>Average</th><th>Market</th><th>Notional</th></tr></thead>
+      <tbody id="positions"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Recovery / Protection</h2>
+    <pre id="detail">No runtime snapshot yet.</pre>
+  </section>
+
+  <section>
+    <h2>Recent events</h2>
+    <div id="events"></div>
+  </section>
+</main>
+<script>
+const fmt=(v,d=2)=>Number.isFinite(Number(v))?Number(v).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}):"—";
+const pct=v=>Number.isFinite(Number(v))?(Number(v)*100).toFixed(2)+"%":"—";
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function json(url,fallback){try{const r=await fetch(url,{cache:"no-store"});return r.ok?await r.json():fallback}catch{return fallback}}
+function card(label,value,klass=""){return '<div class="card"><div class="label">'+esc(label)+'</div><div class="value '+klass+'">'+esc(value)+'</div></div>'}
+async function refresh(){
+  const [s,events]=await Promise.all([json("/runtime-status.json",{}),json("/recent-events.json",[])]);
+  const state=s.tradingState??"NO DATA";
+  const stateClass=state==="PaperOnly"?"ok":state==="Reducing"||state==="Halted"?"bad":"warn";
+  document.getElementById("cards").innerHTML=[
+    card("Trading state",state,stateClass),
+    card("Equity",fmt(s.equity)),
+    card("Daily P&L",fmt(s.dailyPnl),Number(s.dailyPnl)<0?"bad":"ok"),
+    card("Gross exposure",fmt(s.grossExposure)),
+    card("Daily loss",pct(s.dailyLossPercent),Number(s.dailyLossPercent)>0?"warn":""),
+    card("Drawdown",pct(s.drawdownPercent),Number(s.drawdownPercent)>0?"warn":""),
+    card("Open positions",s.openPositionCount??"—"),
+    card("Open orders",s.openOrderCount??"—"),
+    card("Recovery",s.recoveryMode??"—",s.recoveryHealthy===false?"bad":""),
+    card("Journal",s.journalHealthy===false?"UNHEALTHY":"OK",s.journalHealthy===false?"bad":"ok")
+  ].join("");
+  const rows=(s.positions??[]).map(p=>'<tr><td>'+esc(p.symbol)+'</td><td>'+fmt(p.quantity,4)+'</td><td>'+fmt(p.averagePrice)+'</td><td>'+fmt(p.marketPrice)+'</td><td>'+fmt(p.notional)+'</td></tr>').join("");
+  document.getElementById("positions").innerHTML=rows||'<tr><td colspan="5">Flat</td></tr>';
+  document.getElementById("detail").textContent=[
+    "UTC: "+(s.utcTime??"—"),
+    "Protection halted: "+(s.protectionHalted??"—"),
+    "Halt reason: "+(s.protectionHaltReason||"—"),
+    "Recovery healthy: "+(s.recoveryHealthy??"—"),
+    "Recovery detail: "+(s.recoveryDetail||"—"),
+    "Journal error: "+(s.journalError||"—")
+  ].join("\n");
+  document.getElementById("events").innerHTML=(events??[]).slice().reverse().map(e=>
+    '<div class="event '+esc(e.severity)+'"><b>'+esc(e.kind)+' · '+esc(e.code)+'</b><br>'+
+    esc(e.message)+'<br><small>'+esc(e.utcTime)+(e.symbol?' · '+esc(e.symbol):'')+(e.strategyId?' · '+esc(e.strategyId):'')+'</small></div>'
+  ).join("")||'<div class="sub">No events yet.</div>';
+}
+refresh(); setInterval(refresh,5000);
+</script>
+</body>
+</html>

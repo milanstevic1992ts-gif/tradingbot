@@ -3,6 +3,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLUGIN_DIR="${GE360_PLUGIN_DIR:-}"
+OBSERVABILITY_DIR="${GE360_OBSERVABILITY_DIR:-$ROOT/artifacts/ci-observability}"
+export GE360_OBSERVABILITY_DIR="$OBSERVABILITY_DIR"
+rm -rf "$OBSERVABILITY_DIR"
 
 dotnet build "$ROOT/Launcher/QuantConnect.Lean.Launcher.csproj" --configuration Release
 dotnet build "$ROOT/GE360.Trading.LeanAlgorithm/GE360.Trading.LeanAlgorithm.csproj" --configuration Release
@@ -14,6 +17,7 @@ for dll in \
   GE360.Trading.Core.dll \
   GE360.Trading.Validation.dll \
   GE360.Trading.Recovery.dll \
+  GE360.Trading.Observability.dll \
   GE360.Trading.LeanAdapter.dll \
   GE360.Trading.LeanAlgorithm.dll
 do
@@ -105,3 +109,12 @@ fi
 if [ -n "$PLUGIN_DIR" ]; then
   echo "GE360 LEAN smoke completed with plugin-directory: $PLUGIN_DIR"
 fi
+
+
+test -f "$OBSERVABILITY_DIR/runtime-status.json"
+test -f "$OBSERVABILITY_DIR/recent-events.json"
+ls "$OBSERVABILITY_DIR"/events-*.jsonl >/dev/null 2>&1
+grep -R -q '"kind":"SignalObserved"' "$OBSERVABILITY_DIR"
+grep -R -q '"kind":"RiskApproved"' "$OBSERVABILITY_DIR"
+grep -R -q '"kind":"ExecutionSubmitted"' "$OBSERVABILITY_DIR"
+echo "GE360 observability smoke passed: $OBSERVABILITY_DIR"

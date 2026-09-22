@@ -2,6 +2,7 @@ using GE360.Trading.Domain;
 using GE360.Trading.Execution;
 using GE360.Trading.Features;
 using GE360.Trading.LeanAdapter;
+using GE360.Trading.Observability;
 using GE360.Trading.Protection;
 using GE360.Trading.Recovery;
 using GE360.Trading.Risk;
@@ -37,6 +38,8 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
     private PositionProtectionMonitor _positionProtection = null!;
     private LeanForwardPaperRecorder? _forwardPaperRecorder;
     private LeanRecoveryCoordinator? _recoveryCoordinator;
+    private LeanObservabilityCoordinator _observability = null!;
+    private bool _protectionHaltObserved;
 
     private decimal _peakEquity;
     private decimal _dayStartEquity;
@@ -81,6 +84,20 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
 
         _positionProtection = new PositionProtectionMonitor();
 
+        var observabilityDirectory = Environment.GetEnvironmentVariable(
+            LeanObservabilityCoordinator.DirectoryEnvironmentVariable);
+
+        _observability = new LeanObservabilityCoordinator(
+            observabilityDirectory);
+
+        _observability.RecordRuntimeStarted(
+            UtcTime,
+            LiveMode,
+            configuredBrokerage ?? string.Empty);
+
+        Debug(
+            $"GE360 observability enabled: {_observability.RootDirectory}");
+
         if (isLeanPaperRuntime)
         {
             var storePath = Environment.GetEnvironmentVariable(
@@ -115,6 +132,8 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
         {
             return;
         }
+
+        MarketSnapshot? observabilityMarket = null;
 
         try
         {
@@ -153,6 +172,8 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
                 BidPrice = bidPrice,
                 AskPrice = askPrice
             };
+
+            observabilityMarket = market;
 
             if (!EnsureRecoveryReady(market))
             {
@@ -233,12 +254,37 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
                 _forwardPaperRecorder?.RecordStructuralFailure(
                     "recovery-checkpoint-persistence-failed");
             }
+
+            if (observabilityMarket is not null)
+            {
+                var snapshot =
+                    BuildPortfolioSnapshot(
+                        observabilityMarket);
+
+                _observability.WriteSnapshot(
+                    this,
+                    snapshot,
+                    _protection,
+                    _recoveryCoordinator);
+            }
+
+            if (_protection.IsHalted &&
+                !_protectionHaltObserved)
+            {
+                _protectionHaltObserved = true;
+                _observability.RecordProtectionState(
+                    UtcTime,
+                    _protection);
+            }
         }
     }
 
     public override void OnOrderEvent(OrderEvent orderEvent)
     {
         _forwardPaperRecorder?.ObserveOrderEvent(orderEvent);
+        _observability.RecordOrderEvent(
+            UtcTime,
+            orderEvent);
 
         if (_recoveryCoordinator?.StartupComplete == true &&
             !_recoveryCoordinator.PersistRuntime(
@@ -265,6 +311,10 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
             UtcTime,
             Time,
             Portfolio.TotalPortfolioValue,
+            Portfolio.Invested);
+
+        _observability.RecordRuntimeStopped(
+            UtcTime,
             Portfolio.Invested);
 
         if (Portfolio.Invested)
@@ -322,6 +372,10 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
 
         Debug(
             $"GE360 RECOVERY {result.Mode}: {string.Join(" | ", result.Reasons)}");
+
+        _observability.RecordRecovery(
+            UtcTime,
+            result);
 
         if (result.RequiresCancelOpenOrders)
         {
@@ -402,14 +456,35 @@ public sealed class Ge360OpeningRangePaperAlgorithm : QCAlgorithm
         MarketSnapshot market,
         PortfolioSnapshot portfolio)
     {
-        var approval = _approval.Evaluate(signal, market, portfolio);
+        _observability.RecordSignal(
+            signal,
+            portfolio,
+            market);
+
+        var approval = _approval.Evaluate(
+            signal,
+            market,
+            portfolio);
+
+        _observability.RecordApproval(
+            signal,
+            approval);
+
         if (!approval.Approved || approval.Order is null)
         {
             Debug($"GE360 REJECT {signal.Symbol}: {approval.Code} - {approval.Reason}");
             return;
         }
 
-        var execution = _execution.Submit(approval.Order);
+        var execution = _execution.Submit(
+            approval.Order);
+
+        _observability.RecordExecution(
+            UtcTime,
+            signal,
+            approval,
+            execution);
+
         if (!execution.Submitted)
         {
             Debug($"GE360 EXEC REJECT {signal.Symbol}: {execution.Code} - {execution.Reason}");

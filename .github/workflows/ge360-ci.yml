@@ -7,6 +7,7 @@ on:
       - "GE360.Trading.Core/**"
       - "GE360.Trading.Validation/**"
       - "GE360.Trading.Recovery/**"
+      - "GE360.Trading.Observability/**"
       - "GE360.Trading.LeanAdapter/**"
       - "GE360.Trading.LeanAlgorithm/**"
       - "GE360.Trading.AlpacaPluginHost/**"
@@ -18,6 +19,9 @@ on:
       - "scripts/ge360-live-paper-alpaca.sh"
       - "scripts/ge360-install-paper-service.sh"
       - "scripts/ge360-paper-status.sh"
+      - "dashboard/ge360-observability/**"
+      - "scripts/ge360-observability-status.sh"
+      - "scripts/ge360-observability-dashboard.py"
       - "config/ge360-trading-paper.env.example"
       - ".github/workflows/ge360-ci.yml"
   pull_request:
@@ -25,6 +29,7 @@ on:
       - "GE360.Trading.Core/**"
       - "GE360.Trading.Validation/**"
       - "GE360.Trading.Recovery/**"
+      - "GE360.Trading.Observability/**"
       - "GE360.Trading.LeanAdapter/**"
       - "GE360.Trading.LeanAlgorithm/**"
       - "GE360.Trading.AlpacaPluginHost/**"
@@ -36,6 +41,9 @@ on:
       - "scripts/ge360-live-paper-alpaca.sh"
       - "scripts/ge360-install-paper-service.sh"
       - "scripts/ge360-paper-status.sh"
+      - "dashboard/ge360-observability/**"
+      - "scripts/ge360-observability-status.sh"
+      - "scripts/ge360-observability-dashboard.py"
       - "config/ge360-trading-paper.env.example"
       - ".github/workflows/ge360-ci.yml"
 
@@ -56,6 +64,8 @@ jobs:
         run: dotnet build GE360.Trading.Validation/GE360.Trading.Validation.csproj --configuration Release
       - name: Build GE360 recovery
         run: dotnet build GE360.Trading.Recovery/GE360.Trading.Recovery.csproj --configuration Release
+      - name: Build GE360 observability
+        run: dotnet build GE360.Trading.Observability/GE360.Trading.Observability.csproj --configuration Release
       - name: Build GE360 research harness
         run: dotnet build GE360.Trading.Research/GE360.Trading.Research.csproj --configuration Release
       - name: Run GE360 tests
@@ -107,6 +117,8 @@ jobs:
           bash -n scripts/ge360-live-paper-alpaca.sh
           bash -n scripts/ge360-install-paper-service.sh
           bash -n scripts/ge360-paper-status.sh
+          bash -n scripts/ge360-observability-status.sh
+          python3 -m py_compile scripts/ge360-observability-dashboard.py
       - name: Verify empty forward-paper summary command
         run: >
           dotnet run
@@ -119,4 +131,24 @@ jobs:
       - name: Run LEAN smoke with Alpaca plugin loaded
         env:
           GE360_PLUGIN_DIR: "${{ github.workspace }}/ge360-plugins/alpaca"
+          GE360_OBSERVABILITY_DIR: "${{ github.workspace }}/artifacts/ci-observability"
         run: bash scripts/ge360-smoke-backtest.sh
+      - name: Verify observability terminal status
+        env:
+          GE360_OBSERVABILITY_DIR: "${{ github.workspace }}/artifacts/ci-observability"
+        run: bash scripts/ge360-observability-status.sh
+      - name: Verify observability dashboard HTTP
+        env:
+          GE360_OBSERVABILITY_DIR: "${{ github.workspace }}/artifacts/ci-observability"
+        run: |
+          python3 scripts/ge360-observability-dashboard.py             --dashboard-dir dashboard/ge360-observability             --bind 127.0.0.1             --port 9891 &
+          DASH_PID=$!
+          trap 'kill $DASH_PID 2>/dev/null || true' EXIT
+          sleep 1
+          curl -fsS http://127.0.0.1:9891/ >/dev/null
+          curl -fsS http://127.0.0.1:9891/runtime-status.json | grep -q '"tradingState"'
+          curl -fsS http://127.0.0.1:9891/recent-events.json | grep -q '"kind"'
+          if curl -fsS -X POST http://127.0.0.1:9891/ >/dev/null 2>&1; then
+            echo "Dashboard unexpectedly accepted POST"
+            exit 1
+          fi

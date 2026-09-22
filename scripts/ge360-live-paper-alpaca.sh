@@ -7,12 +7,14 @@ ALGO_DIR="$ROOT/GE360.Trading.LeanAlgorithm/bin/Release/net10.0"
 PLUGIN_DIR="${GE360_ALPACA_PLUGIN_DIR:-$ROOT/ge360-plugins/alpaca}"
 PAPER_STORE="${GE360_FORWARD_PAPER_STORE:-$ROOT/ge360-state/forward-paper.json}"
 RECOVERY_CHECKPOINT="${GE360_RECOVERY_CHECKPOINT:-$ROOT/ge360-state/recovery-checkpoint.json}"
+OBSERVABILITY_DIR="${GE360_OBSERVABILITY_DIR:-$ROOT/ge360-state/observability}"
 
 : "${APCA_API_KEY_ID:?Set APCA_API_KEY_ID before starting GE360 live-paper}"
 : "${APCA_API_SECRET_KEY:?Set APCA_API_SECRET_KEY before starting GE360 live-paper}"
 
 export GE360_FORWARD_PAPER_STORE="$PAPER_STORE"
 export GE360_RECOVERY_CHECKPOINT="$RECOVERY_CHECKPOINT"
+export GE360_OBSERVABILITY_DIR="$OBSERVABILITY_DIR"
 
 dotnet build "$ROOT/Launcher/QuantConnect.Lean.Launcher.csproj" --configuration Release
 dotnet build "$ROOT/GE360.Trading.LeanAlgorithm/GE360.Trading.LeanAlgorithm.csproj" --configuration Release
@@ -22,6 +24,7 @@ for dll in \
   GE360.Trading.Core.dll \
   GE360.Trading.Validation.dll \
   GE360.Trading.Recovery.dll \
+  GE360.Trading.Observability.dll \
   GE360.Trading.LeanAdapter.dll \
   GE360.Trading.LeanAlgorithm.dll
 do
@@ -121,7 +124,7 @@ text = text[:match.start()] + block + text[match.end():]
 path.write_text(text)
 PY
 
-mkdir -p "$(dirname "$PAPER_STORE")"
+mkdir -p "$(dirname "$PAPER_STORE")" "$OBSERVABILITY_DIR"
 
 echo "GE360 live-paper configuration:"
 echo "  brokerage: LEAN PaperBrokerage"
@@ -129,6 +132,7 @@ echo "  live data: AlpacaBrokerage"
 echo "  real brokerage submission: DISABLED"
 echo "  observation store: $PAPER_STORE"
 echo "  recovery checkpoint: $RECOVERY_CHECKPOINT"
+echo "  observability: $OBSERVABILITY_DIR"
 echo "  plugin directory: $PLUGIN_DIR"
 
 cd "$LAUNCH_DIR"
