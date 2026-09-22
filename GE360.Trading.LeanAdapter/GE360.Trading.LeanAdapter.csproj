@@ -4,6 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1903;NU1904</WarningsNotAsErrors>
     <RootNamespace>GE360.Trading.LeanAdapter</RootNamespace>
     <AssemblyName>GE360.Trading.LeanAdapter</AssemblyName>
   </PropertyGroup>
